@@ -13,17 +13,27 @@ start:
 	# TODO:通过中断输出Hello World, 并且间隔1000ms打印新的一行
 
 
-	# 将 clock_handle 的偏移地址存储到 0x70（偏移量）
-	movw $clock_handle, 0x70          
-	movw $0, 0x72 
+	# 将 clock_handle 的偏移地址存储到 0x70（偏移量）(test)
+	# movw $clock_handle, 0x70          
+	# movw $0, 0x72 
 	
-	movw %ax, %sp # setting stack pointer to 0x7d00
-    pushw $13 # pushing the size to print into stack
-    pushw $message # pushing the address of message into stack
-    callw displayStr # calling the display function
+	# movw %ax, %sp # setting stack pointer to 0x7d00
+    # pushw $13 # pushing the size to print into stack
+    # pushw $message # pushing the address of message into stack
+    # callw displayStr # calling the display function
+
+    # 设置中断向量表，将 clock_handle 挂载到中断号 0x20
+    movw $0x20, %ax
+    movw %ax, %es
+    movw $clock, 0x8 # 中断处理程序的偏移地址
+    movw $0x0000, 0x0 # 中断处理程序的段地址
+
+    # 初始化定时器
+    call clock_handle
 
 
 loop:
+    hlt
 	jmp loop
 
 message:
@@ -57,6 +67,32 @@ clock_handle:
     mov %ah, %al
     out %al, %dx
     sti
+    ret
 
+clock:
+    pushw %ax
+    pushw %bx
+    pushw %cx
+    pushw %dx
+    pushw %di
+    pushw %si
+
+    # 调用显示字符串的函数
+    pushw $message
+    pushw $13
+    callw displayStr
+
+    # 发送 EOI（End of Interrupt）信号
+    movw $0x20, %ax
+    movw %ax, %dx
+    out %al, %dx
+
+    popw %si
+    popw %di
+    popw %dx
+    popw %cx
+    popw %bx
+    popw %ax
+    iret # 中断返回
 
 
