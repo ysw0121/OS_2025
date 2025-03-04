@@ -33,7 +33,6 @@ start:
 
 
 loop:
-    hlt
 	jmp loop
 
 message:

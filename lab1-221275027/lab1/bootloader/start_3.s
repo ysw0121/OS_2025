@@ -9,7 +9,7 @@ start:
 	movw %ax, %es
 	movw %ax, %ss
 	# TODO:关闭中断
-
+	cli
 
 	# 启动A20总线
 	inb $0x92, %al 

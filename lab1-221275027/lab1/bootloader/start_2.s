@@ -9,7 +9,7 @@ start:
 	movw %ax, %es
 	movw %ax, %ss
 	# TODO:关闭中断
-
+	cli
 
 	# 启动A20总线
 	inb $0x92, %al 
@@ -21,6 +21,11 @@ start:
 
 	# TODO：设置CR0的PE位（第0位）为1
 
+	# movl $0x01, %eax
+	# movl %eax, %cr0
+	movl %cr0, %eax
+	orb $0x01, %al
+	movl %eax, %cr0
 
 
 	# 长跳转切换至保护模式
@@ -39,7 +44,12 @@ start32:
 	movl $0x8000, %eax # setting esp
 	movl %eax, %esp
 	# TODO:输出Hello World
+	# refer to app.s
 
+	# jmp bootMain
+	pushl $13
+	pushl $message
+	calll displayStr
 
 
 loop32:
@@ -47,6 +57,19 @@ loop32:
 
 message:
 	.string "Hello, World!\n\0"
+
+displayStr:
+	movl 4(%esp), %ebx
+	movl 8(%esp), %ecx
+	movl $((80*5+0)*2), %edi
+	movb $0x0c, %ah
+nextChar:
+	movb (%ebx), %al
+	movw %ax, %gs:(%edi)
+	addl $2, %edi
+	incl %ebx
+	loopnz nextChar # loopnz decrease ecx by 1
+	ret
 
 
 
@@ -59,16 +82,16 @@ gdt: # 8 bytes for each table entry, at least 1 entry
 	.byte 0,0,0,0
 
 	# TODO：code segment entry
-	.word
-	.byte 
+	.word 0xffff,0
+	.byte 0,0x9a,0xcf,0
 
 	# TODO：data segment entry
-	.word
-	.byte 
+	.word 0xffff,0
+	.byte 0,0x92,0xcf,0
 
 	# TODO：graphics segment entry
-	.word
-	.byte 
+	.word 0xffff,0
+	.byte 0x0b,0x92,0xcf,0
 
 gdtDesc: 
 	.word (gdtDesc - gdt -1) 

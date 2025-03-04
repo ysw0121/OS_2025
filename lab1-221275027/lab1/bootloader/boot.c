@@ -4,6 +4,15 @@
 
 void bootMain(void) {
 	//TODO
+	// void (*entry)(void);
+	// readSect((void *)0x8C00, 1);
+	// entry = (void (*)(void))(*((int *)0x8C00));
+	// entry();
+
+	void (*elf)(void);
+	elf = (void(*)(void))0x8c00;
+	readSect((void*)elf, 1); // loading sector 1 to 0x8c00
+	elf(); // jumping to the loaded program
 
 }
 
