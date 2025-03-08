@@ -15,7 +15,7 @@ displayStr:
 	movl 4(%esp), %ebx
 	movl 8(%esp), %ecx
 	movl $((80*5+0)*2), %edi
-	movb $0x0c, %ah
+	movb $0x0d, %ah
 nextChar:
 	movb (%ebx), %al
 	movw %ax, %gs:(%edi)
