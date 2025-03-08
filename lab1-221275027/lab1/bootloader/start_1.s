@@ -7,7 +7,7 @@ start:
     movw %ax, %ds
     movw %ax, %es
     movw %ax, %ss
-    movw $0x7d00, %sp       # 设置堆栈指针为0x7d00
+    movw $0x7d00, %sp       # set stack pointer 0x7d00
 
     # 初始化显存段寄存器GS为0xB800
     movw $0xB800, %ax
@@ -38,18 +38,18 @@ count:
 line_pos:
     .word 5                   # 当前显示行号（从第5行开始）
 
-# 显示字符串函数（参数：字符串地址，长度）
+
 displayStr:
     push %bp
     mov %sp, %bp
-    movw 4(%bp), %bx          # 参数1: 字符串地址
-    movw 6(%bp), %cx          # 参数2: 字符串长度
-    movw (line_pos), %ax      # 获取当前行号
-    imul $160, %ax, %di       # 每行80字符×2字节=160字节
-    movb $0x0D, %ah           # 红底黑字
+    movw 4(%bp), %bx 
+    movw 6(%bp), %cx 
+    movw (line_pos), %ax 
+    imul $160, %ax, %di
+    movb $0x0D, %ah
 .nextChar:
     movb (%bx), %al
-    movw %ax, %gs:(%di)      # 写入显存
+    movw %ax, %gs:(%di) 
     addw $2, %di             # 下一个字符位置
     incw %bx                 # 下一个字符
     loop .nextChar
