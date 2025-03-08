@@ -21,8 +21,7 @@ start:
 
 	# TODO：设置CR0的PE位（第0位）为1
 
-	# movl $0x01, %eax
-	# movl %eax, %cr0
+
 	movl %cr0, %eax
 	orb $0x01, %al
 	movl %eax, %cr0
@@ -46,7 +45,7 @@ start32:
 	# TODO:输出Hello World
 	# refer to app.s
 
-	# jmp bootMain
+
 	pushl $13
 	pushl $message
 	calll displayStr
@@ -90,7 +89,7 @@ gdt: # 8 bytes for each table entry, at least 1 entry
 	.byte 0,0x92,0xcf,0
 
 	# TODO：graphics segment entry
-	.word 0xffff,0
+	.word 0xffff,0x8000
 	.byte 0x0b,0x92,0xcf,0
 
 gdtDesc: 

@@ -20,7 +20,9 @@ start:
 	data32 addr32 lgdt gdtDesc # loading gdtr, data32, addr32
 
 	# TODO：设置CR0的PE位（第0位）为1
-
+	movl %cr0, %eax
+	orb $0x01, %al
+	movl %eax, %cr0
 
 	# 长跳转切换至保护模式
 	data32 ljmp $0x08, $start32 # reload code segment selector and ljmp to start32, data32
@@ -48,16 +50,16 @@ gdt: # 8 bytes for each table entry, at least 1 entry
 	.byte 0,0,0,0
 
 	# TODO：code segment entry
-	.word
-	.byte 
+	.word 0xffff,0
+	.byte 0,0x9a,0xcf,0
 
 	# TODO：data segment entry
-	.word
-	.byte 
+	.word 0xffff,0
+	.byte 0,0x92,0xcf,0
 
 	# TODO：graphics segment entry
-	.word
-	.byte 
+	.word 0xffff,0x8000
+	.byte 0x0b,0x92,0xcf,0
 
 gdtDesc: 
 	.word (gdtDesc - gdt - 1) 
