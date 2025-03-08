@@ -1,97 +1,88 @@
-# TODO: This is lab1.1
 /* Real Mode Hello World */
 .code16
 
 .global start
 start:
-	movw %cs, %ax
-	movw %ax, %ds
-	movw %ax, %es
-	movw %ax, %ss
-	movw $0x7d00, %ax
-	movw %ax, %sp # setting stack pointer to 0x7d00
-	# TODO:通过中断输出Hello World, 并且间隔1000ms打印新的一行
-
-
-	# 将 clock_handle 的偏移地址存储到 0x70（偏移量）(test)
-	# movw $clock_handle, 0x70          
-	# movw $0, 0x72 
-	
-	# movw %ax, %sp # setting stack pointer to 0x7d00
-    # pushw $13 # pushing the size to print into stack
-    # pushw $message # pushing the address of message into stack
-    # callw displayStr # calling the display function
-
-    # 设置中断向量表，将 clock_handle 挂载到中断号 0x20
-    movw $0x20, %ax
+    movw %cs, %ax
+    movw %ax, %ds
     movw %ax, %es
-    movw $clock, 0x8 # 中断处理程序的偏移地址
-    movw $0x0000, 0x0 # 中断处理程序的段地址
+    movw %ax, %ss
+    movw $0x7d00, %sp       # 设置堆栈指针为0x7d00
 
-    # 初始化定时器
-    call clock_handle
+    # 初始化显存段寄存器GS为0xB800
+    movw $0xB800, %ax
+    movw %ax, %gs
 
+    # 设置时钟中断向量0x70 (段地址:偏移地址)
+    movw $clock_handle, 0x70    # 偏移地址
+    movw %cs, 0x72             # 段地址=CS
+
+    # 配置8253定时器通道0，模式3，50Hz（20ms中断一次）
+    movb $0x36, %al            # 控制字：00110110b
+    outb %al, $0x43            # 写入控制寄存器
+    movw $23863, %ax           # 计数值=1193180/50 -1
+    outb %al, $0x40            # 低字节
+    movb %ah, %al
+    outb %al, $0x40            # 高字节
+
+    sti                        # 启用中断
 
 loop:
-	jmp loop
+    jmp loop                   # 等待中断
 
 message:
-	.string "Hello, World!\n\0"
+    .string "Hello, World!\n\0"
 
+count:
+    .word 0                    # 中断计数器
+line_pos:
+    .word 5                   # 当前显示行号（从第5行开始）
+
+# 显示字符串函数（参数：字符串地址，长度）
 displayStr:
-    pushw %bp
-    movw 4(%esp), %ax
-    movw %ax, %bp
-    movw 6(%esp), %cx
-    movw $0x1301, %ax
-    movw $0x000c, %bx
-    movw $0x0000, %dx
-    int $0x10
-    popw %bp
+    push %bp
+    mov %sp, %bp
+    movw 4(%bp), %bx          # 参数1: 字符串地址
+    movw 6(%bp), %cx          # 参数2: 字符串长度
+    movw (line_pos), %ax      # 获取当前行号
+    imul $160, %ax, %di       # 每行80字符×2字节=160字节
+    movb $0x0D, %ah           # 红底黑字
+.nextChar:
+    movb (%bx), %al
+    movw %ax, %gs:(%di)      # 写入显存
+    addw $2, %di             # 下一个字符位置
+    incw %bx                 # 下一个字符
+    loop .nextChar
+    incw (line_pos)          # 行号+1，下次显示到下一行
+    pop %bp
     ret
 
 
+# 时钟中断处理程序
 clock_handle:
-   # 发送命令字节到控制寄存器端口0x43
-    movw $0x36, %ax         #方式3 ， 用于定时产生中断00110110b
-    movw $0x43, %dx
-    out %al, %dx 
-            # 计算计数值， 产生20 毫秒的时钟中断， 时钟频率为1193180 赫兹
-            # 计数值 = ( 时钟频率/ 每秒中断次数) − 1
-            #       = (1193180 / (1 / 0.02 ) ) − 1= 23863
-    movw $23863, %ax
-            # 将计数值分为低字节和高字节， 发送到计数器0的数据端口（ 端口0x40 ）
-    movw $0x40, %dx
-    out %al, %dx 
-    mov %ah, %al
-    out %al, %dx
-    sti
-    ret
+    pusha                      # 保存寄存器
+    push %ds
 
-clock:
-    pushw %ax
-    pushw %bx
-    pushw %cx
-    pushw %dx
-    pushw %di
-    pushw %si
+    movw %cs, %ax
+    movw %ax, %ds             # 设置DS=CS
 
-    # 调用显示字符串的函数
-    pushw $message
-    pushw $13
-    callw displayStr
+    # 发送EOI到8259 PIC
+    movb $0x20, %al
+    outb %al, $0x20
 
-    # 发送 EOI（End of Interrupt）信号
-    movw $0x20, %ax
-    movw %ax, %dx
-    out %al, %dx
+    # 更新中断计数器
+    incw (count)
+    cmpw $50, (count)         # 检查是否达到50次（1秒）
+    jb .done
 
-    popw %si
-    popw %di
-    popw %dx
-    popw %cx
-    popw %bx
-    popw %ax
-    iret # 中断返回
+    # 打印"Hello, World!"
+    movw $0, (count)          # 重置计数器
+    pushw $13                 # 字符串长度（2字节压栈）
+    pushw $message            # 字符串地址（2字节压栈）
+    call displayStr           # 正确调用函数
+    add $4, %sp              # 清理栈（2个pushw共4字节）
 
-
+.done:
+    pop %ds
+    popa
+    iret                      # 中断返回
