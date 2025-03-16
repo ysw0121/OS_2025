@@ -42,12 +42,12 @@ int uEntry(void) {
 	printf("%s is weaker than Alice\n",name);
 	printf("=======================================================\n");
 	printf("Sleep test begin...\n");
-	struct TimeInfo *t;
+	struct TimeInfo tm;
 	for (int i = 0; i < 10; i++) {
 		sleep(1);
-		now(t);
+		now(&tm);
 		printf("Current RTC time: %d-%d-%d %d:%d:%d. \n",
-			t->year, t->month, t->m_day, t->hour, t->minute, t->second);
+			tm.year, tm.month, tm.m_day, tm.hour, tm.minute, tm.second);
 		printf("slept 1 second for %d time(s).\n", i);
 	}
 	printf("Test end!!! Good luck!!!\n");
