@@ -83,6 +83,19 @@ void KeyboardHandle(struct TrapFrame *tf){
 		}
 	}else if(code < 0x81){ 
 		// TODO: 处理正常的字符
+		keyBuffer[bufferTail++]=code;
+		if(displayCol==80){
+			displayRow++;
+			displayCol=0;
+			if(displayRow==25){
+				scrollScreen();
+				displayRow=24;
+				displayCol=0;
+			}
+		}
+		else{
+			displayCol++;
+		}
 		
 
 	}
@@ -128,7 +141,7 @@ void sysPrint(struct TrapFrame *tf) {
 	for (i = 0; i < size; i++) {
 		asm volatile("movb %%es:(%1), %0":"=r"(character):"r"(str+i));
 		// TODO: 完成光标的维护和打印到显存
-		
+
 		if(character=='\n'){
 			displayRow++;
 			displayCol=0;
@@ -176,6 +189,7 @@ void sysRead(struct TrapFrame *tf){
 
 void sysGetChar(struct TrapFrame *tf){
 	// TODO: 自由实现
+	
 
 }
 

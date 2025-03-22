@@ -2,3 +2,4 @@
 *.elf
 *.bin
 *.img
+lab2-221275027/lab2/bootloader/start.s
