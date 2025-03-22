@@ -34,6 +34,20 @@ void irqHandle(struct TrapFrame *tf) { // pointer tf = esp
 
 	switch(tf->irq) {
 		// TODO: 填好中断处理程序的调用
+		case 0xd:
+			GProtectFaultHandle(tf);
+			break;
+		case 0x20:
+			timerHandler(tf);
+			break;
+		case 0x21:
+			KeyboardHandle(tf);
+			break;
+		case 0x80:
+			syscallHandle(tf);
+			break;
+		case -1:
+			break;
 
 
 		default:assert(0);
@@ -114,7 +128,34 @@ void sysPrint(struct TrapFrame *tf) {
 	for (i = 0; i < size; i++) {
 		asm volatile("movb %%es:(%1), %0":"=r"(character):"r"(str+i));
 		// TODO: 完成光标的维护和打印到显存
+		
+		if(character=='\n'){
+			displayRow++;
+			displayCol=0;
+			if(displayRow==25){
+				scrollScreen();
+				displayRow=24;
+				displayCol=0;
+			}
+			continue;
+		}
 
+		else{
+			data = character | (0x0c << 8);
+			pos = (80*displayRow+displayCol)*2;
+			asm volatile("movw %0, (%1)"::"r"(data),"r"(pos+0xb8000));
+			displayCol++;
+			if(displayCol==80){
+				displayRow++;
+				displayCol=0;
+				if(displayRow==25){
+					scrollScreen();
+					displayRow=24;
+					displayCol=0;
+				}
+			}
+		}
+		
 
 	}
 	tail=displayCol;

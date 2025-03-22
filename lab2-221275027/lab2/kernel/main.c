@@ -8,15 +8,22 @@ void kEntry(void) {
 	
 	// TODO: 做一系列初始化
 	// initialize idt
-	
-	// initialize 8259a
-	
-	// initialize gdt, tss
-	
-	// initialize vga device
-	
-	// initialize keyboard device
+	initIdt();
 
+	// initialize 8259a
+	initIntr();
+
+	// initialize gdt, tss
+	initSeg();
+
+	// initialize vga device
+	initVga();
+
+	
+	initTimer();
+
+	// initialize keyboard device
+	initKeyTable();
 
 
 
