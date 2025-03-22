@@ -66,13 +66,53 @@ int32_t syscall(int num, uint32_t a1,uint32_t a2,
 
 char getChar(){ // 对应SYS_READ STD_IN
 	// TODO: 实现getChar函数，方式不限
-	return 0;
+	char c = '\0';
+    int ret;
+    
+    // 使用volatile确保所有操作按顺序执行
+    asm volatile(
+        "int $0x80" 
+        : "=a" (ret)        // 返回值通过eax获取
+        : "a" (SYS_READ),   // 系统调用号（假设为3）
+          "b" (0),          // 文件描述符0（标准输入）
+          "c" (&c),         // 缓冲区地址
+          "d" (1)           // 读取长度1字节
+        : "memory"          // 告知编译器内存被修改
+    );
+    
+    return (ret == 1) ? c : '\0'; // 返回字符或空字符（失败时）
 
 }
 
 void getStr(char *str, int size){ // 对应SYS_READ STD_STR
 	// TODO: 实现getStr函数，方式不限
 
+	// 参数有效性检查
+    if (!str|| size <= 1) {  // 至少保留1字节给null终止符
+        if (str && size > 0) str[0] = '\0';
+        return;
+    }
+
+    // 系统调用约定（基于x86架构）
+    asm volatile (
+        "int $0x80"                 // 触发系统调用
+        : "+a" (size)               // 输入输出寄存器：系统调用号+返回长度
+        : "a" (SYS_READ),           // 系统调用号（假设已定义）
+          "b" (STD_STR),            // 标准输入描述符（假设0）
+          "c" (str),                // 缓冲区地址
+          "d" (size-1)              // 最大读取长度（保留null空间）
+        : "memory"                  // 防止编译器优化内存访问
+    );
+
+    // 处理结果（基于系统调用返回值）
+    if (size <= 0) {                // 系统调用返回实际读取长度
+        str[0] = '\0';              // 错误时清空字符串
+    } else {
+        str[size-1] = '\0';         // 确保null终止
+        if (str[size-2] == '\n') {  // 去除换行符
+            str[size-2] = '\0';
+        }
+    }
 }
 
 int dec2Str(int decimal, char *buffer, int size, int count);

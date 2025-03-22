@@ -105,6 +105,19 @@ void KeyboardHandle(struct TrapFrame *tf){
 
 void timerHandler(struct TrapFrame *tf) {
 	// TODO
+	static uint32_t ticks = 0;       // 系统时钟滴答计数器
+    static uint32_t seconds = 0;     // 系统运行秒数
+    
+    // 发送EOI到PIC控制器
+    outb(0x20, 0x20);               // 主PIC的EOI端口
+    
+    // 更新系统时钟
+    if (++ticks % 1000 == 0) {  // 假设CLK_FREQ=1000（1kHz时钟）
+        seconds++;                   // 每秒递增
+    }
+    
+    
+    
 
 }
 
@@ -189,12 +202,59 @@ void sysRead(struct TrapFrame *tf){
 
 void sysGetChar(struct TrapFrame *tf){
 	// TODO: 自由实现
+
+	// 从键盘缓冲区获取字符
+    uint32_t code= getKeyCode();
+    
+    // 通过陷阱帧返回结果
+    tf->eax = code;
 	
 
 }
 
 void sysGetStr(struct TrapFrame *tf){
 	// TODO: 自由实现
+
+	// 获取用户空间参数（根据系统调用约定）
+    char *buffer = (char*)tf->ecx;    // 缓冲区地址（a1参数）
+    int max_len = tf->edx;            // 最大长度（a2参数）
+    int count = 0;
+    char ch;
+
+    // 参数校验
+    if (max_len <= 0 || !buffer) {
+        tf->eax = -1;  // 错误码：无效参数
+        return;
+    }
+
+    // 循环读取字符
+    while (count < max_len - 1) {
+
+        uint32_t keyCode = getKeyCode();
+        ch = getChar(keyCode);
+
+        // 处理退格键（ASCII 8）
+        if (ch == 8 && count > 0) {
+            count--;
+            continue;
+        }
+        
+        // 回车或换行结束输入
+        if (ch == '\r' || ch == '\n') {
+            break;
+        }
+        
+        // 只接受可打印字符
+        if (ch >= 32 && ch <= 126) {
+            buffer[count++] = ch;
+        }
+    }
+
+    // 添加字符串终结符
+    buffer[count] = '\0';
+    
+    // 通过陷阱帧返回实际读取长度
+    tf->eax = count;
 
 }
 
