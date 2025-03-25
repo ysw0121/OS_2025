@@ -15,10 +15,10 @@ static void setIntr(struct GateDescriptor *ptr, uint32_t selector, uint32_t offs
 	ptr->offset_31_16 = (offset >> 16) & 0xffff;
 	ptr->segment = selector<<3;
 	ptr->pad0 = 0;
-	ptr->system = 0;
+	ptr->system = FALSE;
 	ptr->type = INTERRUPT_GATE_32;
 	ptr->privilege_level = dpl;
-	ptr->present = 1;
+	ptr->present = TRUE;
 
 }
 
@@ -30,10 +30,10 @@ static void setTrap(struct GateDescriptor *ptr, uint32_t selector, uint32_t offs
 	ptr->offset_31_16 = (offset >> 16) & 0xffff;
 	ptr->segment = selector<<3;
 	ptr->pad0 = 0;
-	ptr->system = 0;
+	ptr->system = FALSE;
 	ptr->type = TRAP_GATE_32;
 	ptr->privilege_level = dpl;
-	ptr->present = 1;
+	ptr->present = TRUE;
 
 }
 
@@ -74,8 +74,8 @@ void initIdt() {
 	setTrap(idt + 0x11, SEG_KCODE, (uint32_t)irqAlignCheck, DPL_KERN);
 	setTrap(idt + 0x1e, SEG_KCODE, (uint32_t)irqSecException, DPL_KERN);
 	setIntr(idt + 0x21, SEG_KCODE, (uint32_t)irqKeyboard, DPL_KERN);
-	setIntr(idt + 0x20, SEG_KCODE, (uint32_t)irqTimer, DPL_KERN);
-	setTrap(idt + 0x80, SEG_KCODE, (uint32_t)irqSyscall, DPL_USER);
+	setIntr(idt + 0x20, SEG_KCODE, (uint32_t)irqTimer, DPL_KERN); // ?
+	setIntr(idt + 0x80, SEG_KCODE, (uint32_t)irqSyscall, DPL_USER);
 
 	/* 写入IDT */
 	saveIdt(idt, sizeof(idt));//use lidt

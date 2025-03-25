@@ -61,29 +61,42 @@ size of user program is not greater than 200*512 bytes, i.e., 100KB
 void loadUMain(void) {
 	// TODO: 参照bootloader加载内核的方式，由kernel加载用户程序
 	
-	uint32_t uMainEntry = 0x200000;
-	int i = 0;
-	int phoff = 0x34; // program header offset
-	int offset = 0x1000; // .text section offset
-	unsigned int elf = 0x200000; 
+	putNum(100);
 	
-	for (i = 0; i < 200; i++) {
-		readSect((void*)(elf + i*512), 201+i);
-	}
-	
-	//  address of user program
-	uMainEntry = ((struct ELFHeader *) elf) ->entry;
-	phoff = ((struct ELFHeader *) elf) ->phoff;
-	offset = ((struct ProgramHeader *)(elf + phoff)) ->off;
-
-	for (i = 0; i < 200 * 512; i++) {
-		*(uint8_t*)(elf + i) = *(uint8_t *)(elf + i + offset);
-	}
-
+	ELFHeader *elf;
+	ProgramHeader * ph,*eph;
+	unsigned int buf = 0x400000;
+	elf  = (ELFHeader *)buf;
+	uint32_t uMainEntry = 0;
+		for ( int i = 0; i < 200; i++) 
+		{
+			readSect((void*)(buf + i*512), 201+i);
+		}
+		uMainEntry =  (elf->entry);
+		ph =(ProgramHeader * ) (buf + elf->phoff);
+		eph = ph + elf->phnum;
+		unsigned int off =  0x200000;
+		for(;ph < eph; ph++)
 	{
-		/* data */
-	};
-	
+		if (ph->type == 1)
+		{
+			unsigned int p = ph->vaddr, q = ph->off;
+			while (p < ph->vaddr + ph->filesz) 
+			{
+				*(unsigned char*)(p+off) = *(unsigned char*)(buf + q);
+				q++;
+				p++;
+			}
+			while (p < ph->vaddr + ph->memsz) 
+			{
+				*(unsigned char*)p = 0;
+				q++;
+				p++;
+			}
+		}
+	}
+	putChar('f');
+	putNum(uMainEntry);
+	putChar('f');
 	enterUserSpace(uMainEntry);
-	
 }
