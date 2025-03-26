@@ -90,18 +90,23 @@ void KeyboardHandle(struct TrapFrame *tf){
 		
 		char ch = getChar(code);
 		if(ch!=0){
-			uint16_t data = ch | (0x0c << 8);
-            int pos = (80 * displayRow + displayCol) * 2;
-            asm volatile("movw %0, (%1)"::"r"(data), "r"(pos + 0xb8000));
-            displayCol++; // 增加列位置
-			if (displayCol >= 80) { // 到达行末尾，自动换行
-                displayRow++;
-                displayCol = 0;
-                if (displayRow == 25) {
-                    scrollScreen(); // 滚动屏幕
-                    displayRow = 24;
-                }
-            }
+			putChar(ch);//put char into serial
+			uint16_t data=ch|(0x0c<<8);
+			keyBuffer[bufferTail]=ch;
+			bufferTail++;
+			bufferTail%=MAX_KEYBUFFER_SIZE;
+			int pos=(80*displayRow+displayCol)*2;
+			asm volatile("movw %0, (%1)"::"r"(data),"r"(pos+0xb8000));
+			displayCol+=1;
+			if(displayCol==80){
+				displayCol=0;
+				displayRow++;
+				if(displayRow==25){
+					scrollScreen();
+					displayRow=24;
+					displayCol=0;
+				}
+			}
 		}
 	}
 	updateCursor(displayRow, displayCol);
