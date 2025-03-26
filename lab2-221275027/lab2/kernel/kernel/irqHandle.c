@@ -25,14 +25,25 @@ void sysGetStr(struct TrapFrame *tf);
 void sysSetTimeFlag(struct TrapFrame *tf);
 void sysGetTimeFlag(struct TrapFrame *tf);
 
-
+// ============================ self defined =============================
 #define GET_TIME_FLAG 4 // 获取时间标志
 #define SET_TIME_FLAG 5 // 设置时间标志
 #define NOW_TIME_FLAG 6
-static inline unsigned char getCMOS(unsigned char addr);
-static inline unsigned char BCD2DEC(unsigned char bcd);
+unsigned char getCMOS(uint8_t addr);
+static inline int BCD2DEC(int bcd);
 void sysNowTime(struct TrapFrame *tf);
 int timeFlag=0;
+
+struct TimeInfo {
+	int second;
+	int minute;
+	int hour;
+	int m_day;
+	int month;
+	int year;
+};
+
+// ======================================================================
 
 void irqHandle(struct TrapFrame *tf) { // pointer tf = esp
 	/*
@@ -75,7 +86,7 @@ void KeyboardHandle(struct TrapFrame *tf){
 		//要求只能退格用户键盘输入的字符串，且最多退到当行行首
 		if(displayCol > 0 && bufferTail > tail){
 			displayCol--;
-			// bufferTail--;
+			bufferTail--; // backspace
 			uint16_t data = 0 | (0x0c << 8);
 			int pos = (80 * displayRow + displayCol) * 2;
 			asm volatile("movw %0, (%1)" ::"r"(data), "r"(pos + 0xb8000));
@@ -99,7 +110,7 @@ void KeyboardHandle(struct TrapFrame *tf){
 		
 		char ch = getChar(code);
 		if(ch!=0){
-			putChar(ch);//put char into serial
+			// putChar(ch); // print to screen & cmd
 			uint16_t data=ch|(0x0c<<8);
 			keyBuffer[bufferTail]=ch;
 			bufferTail++;
@@ -143,14 +154,16 @@ void syscallHandle(struct TrapFrame *tf) {
 				case SET_TIME_FLAG:  // 设置时间
 					sysSetTimeFlag(tf);
 					break;
-				case NOW_TIME_FLAG:
-					timeFlag=1;
-					sysNowTime(tf);
-					break;
 				default:
 					break;
 			}
 			break;
+
+		case NOW_TIME_FLAG:
+			// timeFlag=1;
+			sysNowTime(tf);
+			break;
+
 		default:break;
 	}
 }
@@ -229,8 +242,8 @@ void sysGetChar(struct TrapFrame *tf){
 	while(!code){
 		code = getKeyCode();
 	}
-	char asc = getChar(code);
-	uint16_t data = asc| (0x0c << 8);
+	char ch = getChar(code);
+	uint16_t data = ch|(0x0c << 8);
 	int pos = (80 * displayRow + displayCol) * 2;
 	asm volatile("movw %0, (%1)" ::"r"(data), "r"(pos + 0xb8000));
 	displayCol++;
@@ -264,10 +277,9 @@ void sysGetChar(struct TrapFrame *tf){
 		}
 
 	}
-	//asm volatile("movb %0, %%es:(%1)"::"r"(asc),"r"(str));
-	//asm volatile("movb %0, %%eax":"=m"(asc));
 
-	tf->eax = asc;
+
+	tf->eax = ch;
 
 
 }
@@ -275,14 +287,13 @@ void sysGetChar(struct TrapFrame *tf){
 void sysGetStr(struct TrapFrame *tf){
 	// TODO: 自由实现
 
+	int size=(int)(tf->ebx);//str size	
 	char* str=(char*)(tf->edx);//str pointer
-	int size=(int)(tf->ebx);//str size
-	//int t = 10;	
 	bufferHead=0;
 	bufferTail=0;
-	for(int j=0;j<MAX_KEYBUFFER_SIZE;j++)keyBuffer[j]=0;//init
+	for(int j=0;j<MAX_KEYBUFFER_SIZE;j++)keyBuffer[j]=0; // init
+	
 	int i=0;
-
 	char tpc=0;
 	while(tpc!='\n' && i<size){
 
@@ -296,10 +307,9 @@ void sysGetStr(struct TrapFrame *tf){
 
 	int selector=USEL(SEG_UDATA);
 	asm volatile("movw %0, %%es"::"m"(selector));
-	int k=0;
+	
 	for(int p=bufferHead;p<i-1;p++){
-		asm volatile("movb %0, %%es:(%1)"::"r"(keyBuffer[p]),"r"(str+k));
-		k++;
+		asm volatile("movb %0, %%es:(%1)"::"r"(keyBuffer[p]),"r"(str+p-bufferHead));
 	}
 	asm volatile("movb $0x00, %%es:(%0)"::"r"(str+i));
 	return;
@@ -310,15 +320,15 @@ void sysGetStr(struct TrapFrame *tf){
 
 
 // 从CMOS读取时间
-static inline unsigned char getCMOS(uint8_t addr) {
+unsigned char getCMOS(uint8_t addr) {
     outByte(0x70, addr);
 	char c = inByte(0x71);
     return c;
 }
 
 // BCD转十进制
-static inline unsigned char BCD2DEC(unsigned char bcd) {
-    return ((bcd >> 4) * 10) + (bcd & 0xf);
+static inline int BCD2DEC(int bcd) {
+    return ((bcd >> 4)* 10) + (bcd & 0x0f);
 }
 
 
@@ -336,24 +346,46 @@ void sysSetTimeFlag(struct TrapFrame *tf) {
 }
 
 void sysNowTime(struct TrapFrame *tf){
-	int *time_p = (int *)tf->ecx;
-	int data=0;
-	if(timeFlag==1){
-		timeFlag=0;
-		data = BCD2DEC(getCMOS(0x00));
-		asm volatile("movl %0, %%es:(%1)"::"r"(data),"r"(time_p));
-		data = BCD2DEC(getCMOS(0x02));
-		asm volatile("movl %0, %%es:(%1)"::"r"(data),"r"(time_p+1));
-		data = BCD2DEC(getCMOS(0x04));
-		asm volatile("movl %0, %%es:(%1)"::"r"(data),"r"(time_p+2));
-		data = BCD2DEC(getCMOS(0x07));
-		asm volatile("movl %0, %%es:(%1)"::"r"(data),"r"(time_p+3));
-		data = BCD2DEC(getCMOS(0x08));
-		asm volatile("movl %0, %%es:(%1)"::"r"(data),"r"(time_p+4));
-		data = BCD2DEC(getCMOS(0x09));
-		asm volatile("movl %0, %%es:(%1)"::"r"(data),"r"(time_p+5));
-	}
-	for(int i=0;i<6;i++){
-		BCD2DEC(time_p[i]);
-	}
+    int selector = USEL(SEG_UDATA);
+    struct TimeInfo *time_p = (struct TimeInfo *)tf->ecx;
+    asm volatile("movw %0, %%es"::"m"(selector));
+
+    // 读取CMOS中的时间信息并转换为BCD
+    int second = BCD2DEC(getCMOS(0x00));
+    int minute = BCD2DEC(getCMOS(0x02));
+    int hour = BCD2DEC(getCMOS(0x04));
+    int day = BCD2DEC(getCMOS(0x07));
+    int month = BCD2DEC(getCMOS(0x08));
+    int year = BCD2DEC(getCMOS(0x09));
+
+    // UTC+8时区转换
+    hour += 8;
+    if (hour >= 24) {
+        hour -= 24;
+        day += 1;
+        // 处理月份日期
+        int monthDays[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+        // 处理闰年
+        if (year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)) {
+            monthDays[1] = 29;
+        }
+        if (day > monthDays[month - 1]) {
+            day = 1;
+            month += 1;
+            if (month > 12) {
+                month = 1;
+                year += 1;
+            }
+        }
+    }
+
+    // 写回用户空间
+    asm volatile("movl %0, %%es:(%1)"::"r"(second),"r"(&(time_p->second)));
+    asm volatile("movl %0, %%es:(%1)"::"r"(minute),"r"(&(time_p->minute)));
+    asm volatile("movl %0, %%es:(%1)"::"r"(hour),"r"(&(time_p->hour)));
+    asm volatile("movl %0, %%es:(%1)"::"r"(day),"r"(&(time_p->m_day)));
+    asm volatile("movl %0, %%es:(%1)"::"r"(month),"r"(&(time_p->month)));
+    asm volatile("movl %0, %%es:(%1)"::"r"(year),"r"(&(time_p->year)));
+
+    return;
 }

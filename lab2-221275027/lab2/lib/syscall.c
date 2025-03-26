@@ -155,7 +155,8 @@ void sleep(unsigned int seconds) {
 }
 void now(struct TimeInfo *tm_info) {
     // TODO: 实现now函数，使用RTC方式
-	syscall(SYS_TIME, NOW_TIME_FLAG, (uint32_t)tm_info, 0, 0, 0);
+	syscall(NOW_TIME_FLAG, (uint32_t)tm_info, 0, 0, 0, 0);
+	// syscall(SYS_TIME, NOW_TIME_FLAG, (uint32_t)tm_info, 0, 0, 0); // wrong
 }
 int dec2Str(int decimal, char *buffer, int size, int count) {
 	int i=0;
