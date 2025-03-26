@@ -143,13 +143,19 @@ void printf(const char *format,...){
 
 void sleep(unsigned int seconds) {
     // TODO: 实现一个阻塞方式的sleep库函数
-    
+    // int time=seconds*400; // for test
+	int time=seconds*100;
+	while(time>=0){
+		syscall(SYS_TIME, SET_TIME_FLAG, 0, 0, 0, 0);
+		while(!syscall(SYS_TIME, GET_TIME_FLAG, 0, 0, 0, 0)){
+			;
+		}
+		time--;
+	}
 }
-
 void now(struct TimeInfo *tm_info) {
-	// TODO: 实现now函数，使用RTC方式
-
-
+    // TODO: 实现now函数，使用RTC方式
+	syscall(SYS_TIME, NOW_TIME_FLAG, (uint32_t)tm_info, 0, 0, 0);
 }
 int dec2Str(int decimal, char *buffer, int size, int count) {
 	int i=0;

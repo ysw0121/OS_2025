@@ -9,7 +9,6 @@ extern int bufferHead;
 extern int bufferTail;
 
 
-
 int tail=0;
 
 void GProtectFaultHandle(struct TrapFrame *tf);
@@ -26,6 +25,14 @@ void sysGetStr(struct TrapFrame *tf);
 void sysSetTimeFlag(struct TrapFrame *tf);
 void sysGetTimeFlag(struct TrapFrame *tf);
 
+
+#define GET_TIME_FLAG 4 // 获取时间标志
+#define SET_TIME_FLAG 5 // 设置时间标志
+#define NOW_TIME_FLAG 6
+static inline unsigned char getCMOS(unsigned char addr);
+static inline unsigned char BCD2DEC(unsigned char bcd);
+void sysNowTime(struct TrapFrame *tf);
+int timeFlag=0;
 
 void irqHandle(struct TrapFrame *tf) { // pointer tf = esp
 	/*
@@ -117,7 +124,7 @@ void KeyboardHandle(struct TrapFrame *tf){
 
 void timerHandler(struct TrapFrame *tf) {
 	// TODO:
-   
+	timeFlag=1;
 }
 
 void syscallHandle(struct TrapFrame *tf) {
@@ -129,7 +136,20 @@ void syscallHandle(struct TrapFrame *tf) {
 			sysRead(tf);
 			break; // for SYS_READ
 		case 2:  // SYS_TIME
-			
+			switch(tf->ecx) {
+				case GET_TIME_FLAG:  // 获取时间
+					sysGetTimeFlag(tf);
+					break;
+				case SET_TIME_FLAG:  // 设置时间
+					sysSetTimeFlag(tf);
+					break;
+				case NOW_TIME_FLAG:
+					timeFlag=1;
+					sysNowTime(tf);
+					break;
+				default:
+					break;
+			}
 			break;
 		default:break;
 	}
@@ -287,16 +307,53 @@ void sysGetStr(struct TrapFrame *tf){
 
 
 
-#define USER_BASE  0x40000000U  // 示例用户空间基址
-#define USER_SIZE  0x40000000U  // 示例用户空间大小
-#define USER_END  (USER_BASE + USER_SIZE)
+
+
+// 从CMOS读取时间
+static inline unsigned char getCMOS(uint8_t addr) {
+    outByte(0x70, addr);
+	char c = inByte(0x71);
+    return c;
+}
+
+// BCD转十进制
+static inline unsigned char BCD2DEC(unsigned char bcd) {
+    return ((bcd >> 4) * 10) + (bcd & 0xf);
+}
+
 
 void sysGetTimeFlag(struct TrapFrame *tf) {
     // TODO: 自由实现
-   
+	tf->eax = timeFlag;
+	
+	return;
+    
 }
 void sysSetTimeFlag(struct TrapFrame *tf) {
     // TODO: 自由实现
+	timeFlag=0;
 
+}
 
+void sysNowTime(struct TrapFrame *tf){
+	int *time_p = (int *)tf->ecx;
+	int data=0;
+	if(timeFlag==1){
+		timeFlag=0;
+		data = BCD2DEC(getCMOS(0x00));
+		asm volatile("movl %0, %%es:(%1)"::"r"(data),"r"(time_p));
+		data = BCD2DEC(getCMOS(0x02));
+		asm volatile("movl %0, %%es:(%1)"::"r"(data),"r"(time_p+1));
+		data = BCD2DEC(getCMOS(0x04));
+		asm volatile("movl %0, %%es:(%1)"::"r"(data),"r"(time_p+2));
+		data = BCD2DEC(getCMOS(0x07));
+		asm volatile("movl %0, %%es:(%1)"::"r"(data),"r"(time_p+3));
+		data = BCD2DEC(getCMOS(0x08));
+		asm volatile("movl %0, %%es:(%1)"::"r"(data),"r"(time_p+4));
+		data = BCD2DEC(getCMOS(0x09));
+		asm volatile("movl %0, %%es:(%1)"::"r"(data),"r"(time_p+5));
+	}
+	for(int i=0;i<6;i++){
+		BCD2DEC(time_p[i]);
+	}
 }
