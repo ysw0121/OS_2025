@@ -8,6 +8,14 @@
 #define STD_IN 0 // 可修改 可自定义
 #define STD_STR 1 // 可修改 可自定义
 
+#define SYS_TIME 2 // 时间相关的系统调用
+
+
+#define GET_TIME_FLAG 0 // 获取时间标志
+#define SET_TIME_FLAG 1 // 设置时间标志
+
+
+
 #define MAX_BUFFER_SIZE 256
 
 void printf(const char *format,...);

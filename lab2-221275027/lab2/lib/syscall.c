@@ -142,13 +142,14 @@ void printf(const char *format,...){
 }
 
 void sleep(unsigned int seconds) {
-	// TODO: 实现一个阻塞方式的sleep库函数
-	
+    // TODO: 实现一个阻塞方式的sleep库函数
+    
 }
 
 void now(struct TimeInfo *tm_info) {
 	// TODO: 实现now函数，使用RTC方式
-	
+
+
 }
 int dec2Str(int decimal, char *buffer, int size, int count) {
 	int i=0;
