@@ -64,34 +64,45 @@ void KeyboardHandle(struct TrapFrame *tf){
 
 	if(code == 0xe){ // 退格符
 		//要求只能退格用户键盘输入的字符串，且最多退到当行行首
-		if(bufferHead!=bufferTail){
-			bufferTail--;
+		if(displayCol > 0 && bufferTail > tail){
 			displayCol--;
+			// bufferTail--;
+			uint16_t data = 0 | (0x0c << 8);
+			int pos = (80 * displayRow + displayCol) * 2;
+			asm volatile("movw %0, (%1)" ::"r"(data), "r"(pos + 0xb8000));
 		}
 	}else if(code == 0x1c){ // 回车符
 		//处理回车情况
+		keyBuffer[bufferTail++]='\n';
 		displayRow++;
 		displayCol=0;
-		keyBuffer[bufferTail]='\n';
-		bufferTail=(bufferTail+1)%MAX_KEYBUFFER_SIZE;
-		if(bufferTail==bufferHead)bufferHead=(bufferHead+1)%MAX_KEYBUFFER_SIZE;
+		tail=0;
+		if (displayRow == 25)
+		{
+			displayRow = 24;
+			displayCol = 0;
+			scrollScreen();
+		}
+		
 	}else if(code < 0x81){ 
 		// TODO: 处理正常的字符
 		
-		displayCol++;
-		keyBuffer[bufferTail]=code;
-		bufferTail=(bufferTail+1)%MAX_KEYBUFFER_SIZE;
-		if(bufferTail==bufferHead)bufferHead=(bufferHead+1)%MAX_KEYBUFFER_SIZE;
-	}
-
-	if(displayCol==80){
-		displayRow++;
-		displayCol=0;
-	}
-	if(displayRow==25) {
-		displayRow=24;
-		displayCol=0;
-		scrollScreen();
+		
+		char ch = getChar(code);
+		if(ch!=0){
+			uint16_t data = ch | (0x0c << 8);
+            int pos = (80 * displayRow + displayCol) * 2;
+            asm volatile("movw %0, (%1)"::"r"(data), "r"(pos + 0xb8000));
+            displayCol++; // 增加列位置
+			if (displayCol >= 80) { // 到达行末尾，自动换行
+                displayRow++;
+                displayCol = 0;
+                if (displayRow == 25) {
+                    scrollScreen(); // 滚动屏幕
+                    displayRow = 24;
+                }
+            }
+		}
 	}
 	updateCursor(displayRow, displayCol);
 
@@ -182,7 +193,7 @@ void sysPrint(struct TrapFrame *tf) {
 		
 
 	}
-	tail=displayCol;
+	// tail=displayCol;
 	updateCursor(displayRow, displayCol);
 	return;
 }
@@ -202,11 +213,49 @@ void sysRead(struct TrapFrame *tf){
 void sysGetChar(struct TrapFrame *tf){
 	// TODO: 自由实现
 
-	asm volatile("sti");
-	while(bufferHead==bufferTail||keyBuffer[bufferTail-1]!='\n')waitForInterrupt();
-	asm volatile("cli");
-	tf->eax=getChar(keyBuffer[bufferHead]);
-	bufferHead=bufferTail;
+	uint32_t code = getKeyCode();
+	while(!code){
+		code = getKeyCode();
+	}
+	char asc = getChar(code);
+	uint16_t data = asc| (0x0c << 8);
+	int pos = (80 * displayRow + displayCol) * 2;
+	asm volatile("movw %0, (%1)" ::"r"(data), "r"(pos + 0xb8000));
+	displayCol++;
+	if (displayCol == 80)
+	{
+		displayRow++;
+		displayCol = 0;
+		if (displayRow == 25)
+		{
+			displayRow = 24;
+			displayCol = 0;
+			scrollScreen();
+		}
+	}
+	updateCursor(displayRow, displayCol);
+	while(TRUE){
+		code = getKeyCode();
+		char character = getChar(code);
+		if (character == '\n')
+		{
+			displayRow++;
+			displayCol = 0;
+			if (displayRow == 25)
+			{
+				displayRow = 24;
+				displayCol = 0;
+				scrollScreen();
+			}
+			updateCursor(displayRow, displayCol);
+			break;
+		}
+
+	}
+	//asm volatile("movb %0, %%es:(%1)"::"r"(asc),"r"(str));
+	//asm volatile("movb %0, %%eax":"=m"(asc));
+
+	tf->eax = asc;
 
 
 }
@@ -214,25 +263,36 @@ void sysGetChar(struct TrapFrame *tf){
 void sysGetStr(struct TrapFrame *tf){
 	// TODO: 自由实现
 
-	int sel = USEL(SEG_UDATA); 
-	char *str = (char*)tf->edx;
-	int size = tf->ebx;
-	int i = 0;
-	char c=0;
-	asm volatile("sti");
-	while(bufferHead==bufferTail||keyBuffer[bufferTail-1]!='\n')waitForInterrupt();
-	asm volatile("cli");
-	asm volatile("movw %0, %%es"::"m"(sel));
-	for (i = 0; i < size; i++) {
-		if(bufferHead==bufferTail)break;
-		if(keyBuffer[bufferHead]=='\n')break;
-		c=getChar(keyBuffer[bufferHead]);
-		if(c!=0)asm volatile("movb %0, %%es:(%1)"::"r"(c),"r"(str+i));
-		bufferHead=(bufferHead+1)%MAX_KEYBUFFER_SIZE;
+	char* str=(char*)(tf->edx);//str pointer
+	int size=(int)(tf->ebx);//str size
+	//int t = 10;	
+	bufferHead=0;
+	bufferTail=0;
+	for(int j=0;j<MAX_KEYBUFFER_SIZE;j++)keyBuffer[j]=0;//init
+	int i=0;
+
+	char tpc=0;
+	while(tpc!='\n' && i<size){
+
+		while(keyBuffer[i]==0){
+			enableInterrupt();
+		}
+		tpc=keyBuffer[i];
+		i++;
+		disableInterrupt();
+	}
+
+	int selector=USEL(SEG_UDATA);
+	asm volatile("movw %0, %%es"::"m"(selector));
+	int k=0;
+	for(int p=bufferHead;p<i-1;p++){
+		asm volatile("movb %0, %%es:(%1)"::"r"(keyBuffer[p]),"r"(str+k));
+		k++;
 	}
 	asm volatile("movb $0x00, %%es:(%0)"::"r"(str+i));
-	bufferHead=bufferTail;
+	return;
 }
+
 
 
 #define USER_BASE  0x40000000U  // 示例用户空间基址

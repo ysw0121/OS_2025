@@ -89,7 +89,6 @@ void printf(const char *format,...){
 	int count=0; // buffer index
 	//int index=0; // parameter index
 	void *paraList=(void*)&format; // address of format in stack
-	paraList+=sizeof(char*);
 	//int state=0; // 0: legal character; 1: '%'; 2: illegal format
 	int decimal=0;
 	uint32_t hexadecimal=0;
@@ -102,26 +101,26 @@ void printf(const char *format,...){
 		if(format[i]=='%'){
 			count--;
 			i++;
-			// paraList+=sizeof(format);
+			paraList+=sizeof(format);
 			switch(format[i]){
 				case 'd':
 					decimal=*(int*)paraList;
-					paraList+=sizeof(int);
+
 					count=dec2Str(decimal, buffer, MAX_BUFFER_SIZE, count);
 					break;
 				case 'x':
 					hexadecimal=*(uint32_t*)paraList;
-					paraList+=sizeof(unsigned int);
+
 					count=hex2Str(hexadecimal, buffer, MAX_BUFFER_SIZE, count);
 					break;
 				case 's':
 					string=*(char**)paraList;
-					paraList+=sizeof(char*);
+
 					count=str2Str(string, buffer, MAX_BUFFER_SIZE, count);
 					break;
 				case 'c':
 					character=*(char*)paraList;
-					paraList+=sizeof(int);
+
 					buffer[count]=character;
 					count++;
 					break;
