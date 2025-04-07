@@ -116,6 +116,27 @@ void syscallHandle(struct StackFrame *sf)
 		sysWrite(sf);
 		break; // for SYS_WRITE
 	/*TODO Add Fork, Sleep, Exit, Exec... */
+
+	case 1:
+		sysFork(sf);
+		break; // for SYS_FORK
+	
+	case 2:
+		sysExec(sf);
+		break; // for SYS_EXEC
+
+	case 3:
+		sysSleep(sf);
+		break; // for SYS_SLEEP
+
+	case 4:
+		sysExit(sf);
+		break; // for SYS_EXIT
+
+	case 5:
+		sysGetPid(sf);
+		break; // for SYS_GETPID
+	
 	default:
 		break;
 	}
@@ -198,11 +219,22 @@ void sysExec(struct StackFrame *sf)
 void sysSleep(struct StackFrame *sf)
 {
 	// TODO: finish sleep
+
+	// 将当前的进程的sleepTime设置为传入的参数，将当前进程的状态设置为STATE_BLOCKED
+	pcb[current].sleepTime = sf->ebx;
+	pcb[current].state = STATE_BLOCKED;
+	asm("int $0x20");
+	return;
+
 }
 
 void sysExit(struct StackFrame *sf)
 {
 	// TODO: finish exit
+	// 将当前进程的状态设置为STATE_DEAD，然后模拟时钟中断进行进程切换
+	pcb[current].state = STATE_DEAD;
+	asm("int $0x20");
+	return;
 }
 
 void sysGetPid(struct StackFrame *sf)
