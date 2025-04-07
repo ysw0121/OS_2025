@@ -240,4 +240,9 @@ void sysExit(struct StackFrame *sf)
 void sysGetPid(struct StackFrame *sf)
 {
 	// TODO: finish getpid
+
+	// 将当前进程的pid返回
+	sf->eax =pcb[current].pid;
+	return;
+
 }
