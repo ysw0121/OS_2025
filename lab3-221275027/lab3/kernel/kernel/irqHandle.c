@@ -232,6 +232,54 @@ void sysPrint(struct StackFrame *sf)
 void sysFork(struct StackFrame *sf)
 {
 	// TODO: finish fork
+
+	// 要做的是在寻找一个空闲的pcb做为子进程的进程控制块，
+	// 将父进程的资源复制给子进程。如果没有空闲pcb，则fork失败，父进程返回-1，成功则子进程返回0，父进程返回子进程pid
+
+
+	int pid = -1;
+	for (int i = 0; i < MAX_PCB_NUM; i++){
+		if (pcb[i].state == STATE_DEAD){
+            pid = i;
+			break;
+        }
+	}
+	if (pid != -1){
+		for (int j = 0; j < 0x100000; j++) {
+			*(uint8_t *)(j + (pid+1)*0x100000) = *(uint8_t *)(j + (current+1)*0x100000);
+		}
+		pcb[pid].pid=pid;
+		pcb[pid].prevStackTop=pcb[current].prevStackTop+(uint32_t)&pcb[pid]-(uint32_t)&pcb[current];
+        pcb[pid].stackTop=pcb[current].stackTop + (uint32_t)&pcb[pid]-(uint32_t)&pcb[current];
+		pcb[pid].sleepTime=0;		
+		pcb[pid].state = STATE_RUNNABLE;
+		pcb[pid].timeCount = 0;
+		pcb[pid].regs.edi = sf->edi;
+		pcb[pid].regs.esi = sf->esi;
+		pcb[pid].regs.ebp = sf->ebp;
+		pcb[pid].regs.xxx = sf->xxx;
+		pcb[pid].regs.ebx = sf->ebx;
+		pcb[pid].regs.edx = sf->edx;
+		pcb[pid].regs.ecx = sf->ecx;
+		pcb[pid].regs.eax = sf->eax;
+		pcb[pid].regs.irq = sf->irq;
+		pcb[pid].regs.error = sf->error;
+		pcb[pid].regs.eip = sf->eip;
+		pcb[pid].regs.esp = sf->esp;
+		pcb[pid].regs.eflags = sf->eflags;
+		pcb[pid].regs.cs = USEL((1 + pid * 2));
+		pcb[pid].regs.ss = USEL((2 + pid * 2));
+		pcb[pid].regs.ds = USEL((2 + pid * 2));
+		pcb[pid].regs.es = USEL((2 + pid * 2));
+		pcb[pid].regs.fs = USEL((2 + pid * 2));
+		pcb[pid].regs.gs = USEL((2 + pid * 2));
+		pcb[pid].regs.eax = 0; 
+		pcb[current].regs.eax = pid; 
+	}
+	else pcb[current].regs.eax = -1; 
+	return;
+
+
 }
 
 void sysExec(struct StackFrame *sf)
