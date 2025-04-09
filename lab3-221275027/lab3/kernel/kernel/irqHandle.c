@@ -65,6 +65,29 @@ uint32_t loadUMain(uint32_t first_sector, uint32_t sector_count, uint32_t pid)
  */
 uint32_t schedule() {
 	// TODO: Select the next process and perform context switching
+	int i = (current + 1) % MAX_PCB_NUM;
+	while (i != current) {
+		if (i != 0 && pcb[i].state == STATE_RUNNABLE)
+			break;
+		i = (i + 1) % MAX_PCB_NUM;
+	}
+	if (pcb[i].state != STATE_RUNNABLE)
+		i = 0;
+	current = i;
+    pcb[current].state = STATE_RUNNING;
+    uint32_t tmpStackTop = pcb[current].stackTop;
+    tss.esp0 = pcb[current].prevStackTop;
+    pcb[current].stackTop = pcb[current].prevStackTop;
+	asm volatile("movl %0, %%esp"::"m"(tmpStackTop));
+    asm volatile("popl %gs");
+	asm volatile("popl %fs");
+	asm volatile("popl %es");
+	asm volatile("popl %ds");
+	asm volatile("popal");
+	asm volatile("addl $8, %esp");
+	asm volatile("iret");
+
+
 	return -1;
 }
 
