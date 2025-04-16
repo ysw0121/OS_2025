@@ -65,6 +65,7 @@ uint32_t loadUMain(uint32_t first_sector, uint32_t sector_count, uint32_t pid)
  */
 uint32_t schedule() {
 	// TODO: Select the next process and perform context switching
+
 	int i = (current + 1) % MAX_PCB_NUM;
 	while (i != current) {
 		if (i != 0 && pcb[i].state == STATE_RUNNABLE)
@@ -129,6 +130,22 @@ void GProtectFaultHandle(struct StackFrame *sf)
 void timerHandle(struct StackFrame *sf)
 {
 	// TODO
+
+	for (int i = 0; i < MAX_PCB_NUM; i++){
+		if (pcb[i].state == STATE_BLOCKED && pcb[i].sleepTime > 0){
+			pcb[i].sleepTime--;
+			if (pcb[i].sleepTime == 0){
+				pcb[i].state = STATE_RUNNABLE;
+			}
+		}
+		else
+			;
+	}
+	pcb[current].timeCount++;
+
+	if (pcb[current].state == STATE_BLOCKED || pcb[current].state == STATE_DEAD || pcb[current].timeCount >= MAX_TIME_COUNT || current == 0){
+		schedule();
+	}
 }
 
 void syscallHandle(struct StackFrame *sf)
@@ -285,6 +302,15 @@ void sysFork(struct StackFrame *sf)
 void sysExec(struct StackFrame *sf)
 {
 	// TODO: finish exec
+	// sysExec是操作系统内核中实现程序替换功能的关键系统调用，它负责将当前进程的内存映像替换为新的程序映像。
+
+	//	sysExec主要完成以下任务：
+	//	1. 替换当前进程的地址空间
+	//	2. 初始化新程序的执行环境
+	//	3. 开始执行新程序
+
+	
+
 }
 
 void sysSleep(struct StackFrame *sf)
