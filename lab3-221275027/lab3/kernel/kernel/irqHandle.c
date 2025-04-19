@@ -5,6 +5,8 @@ extern TSS tss;
 extern ProcessTable pcb[MAX_PCB_NUM];
 extern int current;
 
+extern SegDesc gdt[NR_SEGMENTS];
+
 extern int displayRow;
 extern int displayCol;
 
@@ -69,22 +71,46 @@ uint32_t schedule()
 {
 	// TODO: Select the next process
 
-
-	int if_find = 0;
-	for (int i = (current + 1) % MAX_PCB_NUM; i != current; i = (i+1) % MAX_PCB_NUM) {
-		if (pcb[i].state == STATE_RUNNABLE && i != 0) {
-			if_find = 1;
-			current = i;
-			break;
+	pcb[current].timeCount = 0;
+	pcb[current].state = STATE_RUNNABLE;
+	
+	// 1. 首先尝试调度用户进程
+	for (int i = 1; i < MAX_PCB_NUM; i++)
+	{
+		current = (current + 1) % MAX_PCB_NUM;
+		if (pcb[current].state == STATE_RUNNABLE)
+		{
+			pcb[current].state = STATE_RUNNING;
+			pcb[current].timeCount = 0;
+			uint32_t tmpStackTop = pcb[current].stackTop;
+			pcb[current].stackTop = pcb[current].prevStackTop;
+			tss.esp0 = (uint32_t) & (pcb[current].stackTop);
+			asm volatile("movl %0, %%esp" ::"m"(tmpStackTop)); // switch kernel stack
+			asm volatile("popl %gs");
+			asm volatile("popl %fs");
+			asm volatile("popl %es");
+			asm volatile("popl %ds");
+			asm volatile("popal");
+			asm volatile("addl $8, %esp");
+			asm volatile("iret");
+			return current; // 返回新调度进程的PID
 		}
 	}
-	if (!if_find) current = 0;
-	pcb[current].state = STATE_RUNNING;
-
+	
+	// 2. 如果没有可运行的用户进程，检查当前进程状态
+	if (pcb[current].state == STATE_RUNNING)
+	{
+		pcb[current].state = STATE_RUNNABLE;
+		pcb[current].timeCount = 0;
+	}
+	
+	// 3. 回退到内核进程(pid=0)
+	current = 0;
+	pcb[current].timeCount = 0;
 	uint32_t tmpStackTop = pcb[current].stackTop;
 	pcb[current].stackTop = pcb[current].prevStackTop;
-	tss.esp0 = (uint32_t)&(pcb[current].stackTop);
-	asm volatile("movl %0, %%esp"::"m"(tmpStackTop)); // switch kernel stack
+	tss.esp0 = (uint32_t) & (pcb[current].stackTop);
+	asm volatile("movl %0, %%esp" ::"m"(tmpStackTop)); // switch kernel stack
 	asm volatile("popl %gs");
 	asm volatile("popl %fs");
 	asm volatile("popl %es");
@@ -92,8 +118,7 @@ uint32_t schedule()
 	asm volatile("popal");
 	asm volatile("addl $8, %esp");
 	asm volatile("iret");
-
-	return pcb[current].pid;
+	return -1; // 返回内核进程PID
 }
 
 void contextSwitch(int prev, int new)
@@ -157,24 +182,24 @@ void timerHandle(struct StackFrame *sf)
 {
 	// TODO
 
-	for (int i = 0; i < MAX_PCB_NUM; i++) {
-		if(pcb[i].state==STATE_BLOCKED){
-            pcb[i].sleepTime--;
-            if(pcb[i].sleepTime==0)pcb[i].state=STATE_RUNNABLE;
-        }
+	for (int i = 0; i < MAX_PCB_NUM; i++)
+	{
+		if (pcb[i].state == STATE_BLOCKED && pcb[i].sleepTime > 0)
+		{
+			pcb[i].sleepTime--;
+			if (pcb[i].sleepTime == 0)
+			{
+				pcb[i].state = STATE_RUNNABLE;
+			}
+		}
+		else
+			;
 	}
-    if(pcb[current].state==STATE_RUNNING){
-        if(pcb[current].timeCount!=MAX_TIME_COUNT)pcb[current].timeCount++;
-        if(pcb[current].timeCount==MAX_TIME_COUNT){
-            pcb[current].timeCount=0;
-            pcb[current].state=STATE_RUNNABLE;
-        }
-    }
-    if(pcb[current].state!=STATE_RUNNING){
-        schedule();
-		
-    }
-    return ;
+	pcb[current].timeCount++;
+	if (pcb[current].state == STATE_BLOCKED || pcb[current].state == STATE_DEAD || pcb[current].timeCount >= MAX_TIME_COUNT || current == 0)
+	{
+		schedule();
+	}
 }
 
 void syscallHandle(struct StackFrame *sf)
@@ -281,61 +306,51 @@ void sysFork(struct StackFrame *sf)
 	// 要做的是在寻找一个空闲的pcb做为子进程的进程控制块，
 	// 将父进程的资源复制给子进程。如果没有空闲pcb，则fork失败，父进程返回-1，成功则子进程返回0，父进程返回子进程pid
 
-	//寻找一个空闲的pcb
-	int index;
-	int i;
-	for(i=0;i<MAX_PCB_NUM;i++){
-		if(pcb[i].state==STATE_DEAD){
-			index=i;
+	int newpid = -1;
+	for (int i = 0; i < MAX_PCB_NUM; i++)
+	{
+		if (pcb[i].state == STATE_DEAD)
+		{
+			newpid = i;
 			break;
 		}
 	}
-	if(i==MAX_PCB_NUM){
-		pcb[current].regs.eax=-1;
+	if (newpid == -1)
+	{
+		pcb[current].regs.eax = -1;
 		return;
 	}
 
-	//复制资源并初始化
+	// 复制内存
 	enableInterrupt();
-	for (int j = 0; j < 0x100000; j++) {
-		*(unsigned char *)(j + (index + 1) * 0x100000) = *(unsigned char *)(j + (current + 1) * 0x100000);
-		asm volatile("int $0x20");
+	for (int j = 0; j < 0x100000; j++)
+	{
+		*(uint8_t *)(j + (newpid + 1) * 0x100000) = *(uint8_t *)(j + (current + 1) * 0x100000);
 	}
 	disableInterrupt();
+	// 基本复制
+	// pcb[newpid] = pcb[current]; what the fuck???
+	for (int i = 0; i < sizeof(ProcessTable); i++)
+	{
+		*((uint8_t *)(&pcb[newpid]) + i) = *((uint8_t *)(&pcb[current]) + i);
+	}
 
-	pcb[index].pid = index;
-	pcb[index].prevStackTop = pcb[current].prevStackTop - (uint32_t)&(pcb[current]) + (uint32_t)&(pcb[index]);
-	pcb[index].sleepTime = 0;
+	pcb[newpid].state = STATE_RUNNABLE;
+	pcb[newpid].timeCount = 0;
+	pcb[newpid].sleepTime = 0;
+	pcb[newpid].pid = newpid;
+	pcb[newpid].stackTop = (uint32_t) & (pcb[newpid].regs);
+	pcb[newpid].prevStackTop = (uint32_t) & (pcb[newpid].stackTop);
+	// 返回值
+	pcb[newpid].regs.eax = 0;
+	pcb[current].regs.eax = newpid;
 
-	pcb[index].stackTop = pcb[current].stackTop - (uint32_t)&(pcb[current]) + (uint32_t)&(pcb[index]);
-
-	pcb[index].state = STATE_RUNNABLE;
-	pcb[index].timeCount = 0;
-
-	pcb[index].regs.edi = pcb[current].regs.edi;
-	pcb[index].regs.esi = pcb[current].regs.esi;
-	pcb[index].regs.ebp = pcb[current].regs.ebp;
-	pcb[index].regs.xxx = pcb[current].regs.xxx;
-	pcb[index].regs.ebx = pcb[current].regs.ebx;
-	pcb[index].regs.edx = pcb[current].regs.edx;
-	pcb[index].regs.ecx = pcb[current].regs.ecx;
-	pcb[index].regs.eax = pcb[current].regs.eax;
-	pcb[index].regs.irq = pcb[current].regs.irq;
-	pcb[index].regs.error = pcb[current].regs.error;
-	pcb[index].regs.eip = pcb[current].regs.eip;
-	pcb[index].regs.eflags = pcb[current].regs.eflags;
-	pcb[index].regs.esp = pcb[current].regs.esp;
-
-	pcb[index].regs.cs = USEL(1 + 2*index);
-	pcb[index].regs.ss = USEL(2 * (index+1));
-	pcb[index].regs.ds = USEL(2 * (index+1));
-	pcb[index].regs.es = USEL(2 * (index+1));
-	pcb[index].regs.fs = USEL(2 * (index+1));
-	pcb[index].regs.gs = USEL(2 * (index+1));
-
-	pcb[current].regs.eax = index;
-	pcb[index].regs.eax = 0;
-	return;
+	// 段表，寄存器
+	gdt[1 + newpid * 2] = SEG(STA_X | STA_R, (newpid + 1) * 0x100000, 0x00100000, DPL_USER);
+	gdt[2 + newpid * 2] = SEG(STA_W, (newpid + 1) * 0x100000, 0x00100000, DPL_USER);
+	setGdt(gdt, sizeof(gdt));
+	pcb[newpid].regs.cs = USEL(1 + 2 * newpid);
+	pcb[newpid].regs.ds = pcb[newpid].regs.es = pcb[newpid].regs.fs = pcb[newpid].regs.gs = pcb[newpid].regs.ss = USEL(2 + 2 * newpid);
 	
 
 }
@@ -359,16 +374,10 @@ void sysSleep(struct StackFrame *sf)
 
 	// 将当前的进程的sleepTime设置为传入的参数，将当前进程的状态设置为STATE_BLOCKED
 
-	if(sf->ecx<0){
-		pcb[current].regs.eax = -1;
-		return;
-	}
 	pcb[current].state = STATE_BLOCKED;
+	assert(sf->ecx > 0);
 	pcb[current].sleepTime = sf->ecx;
-
-	schedule();
-	
-	pcb[current].regs.eax = 0;
+	asm volatile("int $0x20");
 	return;
 
 	
@@ -380,14 +389,7 @@ void sysExit(struct StackFrame *sf)
 	// TODO: finish exit
 	// 将当前进程的状态设置为STATE_DEAD，然后模拟时钟中断进行进程切换
 
-	// pcb[current].state = STATE_DEAD;
-	// pcb[current].pid=schedule();
-	// // asm volatile("int $0x20");
-	// sf->eax = 0;
-	// return;
-
 	pcb[current].state = STATE_DEAD;
-	pcb[current].timeCount = MAX_TIME_COUNT;
 	asm volatile("int $0x20");
 	return;
 
