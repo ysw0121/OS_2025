@@ -256,7 +256,7 @@ int str2Str(char *string, char *buffer, int size, int count)
 pid_t fork()
 {
 	// TODO:call syscall
-
+	
 	return syscall(SYS_FORK, 0, 0, 0, 0, 0);
 	// return 0;
 }

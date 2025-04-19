@@ -5,9 +5,6 @@ extern TSS tss;
 extern ProcessTable pcb[MAX_PCB_NUM];
 extern int current;
 
-extern SegDesc gdt[NR_SEGMENTS];
-
-
 extern int displayRow;
 extern int displayCol;
 
@@ -27,6 +24,7 @@ void sysExit(struct StackFrame *sf);
 void sysGetPid(struct StackFrame *sf);
 
 uint32_t schedule();
+void contextSwitch(int prev, int new);
 uint32_t loadUMain(uint32_t first_sector, uint32_t sector_count, uint32_t pid);
 
 /*
@@ -35,39 +33,42 @@ size of kernel is not greater than 200*512 bytes, i.e., 100KB
 user program is loaded to location 0x200000, i.e., 2MB
 size of user program is not greater than 200*512 bytes, i.e., 100KB
 */
-uint32_t loadUMain(uint32_t first_sector, uint32_t sector_count, uint32_t pid) 
+uint32_t loadUMain(uint32_t first_sector, uint32_t sector_count, uint32_t pid)
 {
 	int i = 0;
-	int phoff = 0x34; // program header offset
-	int offset = 0x1000; // .text section offset
-	uint32_t elf = 0x100000*(pid+1); // physical memory addr to load
-	uint32_t uMainEntry = 0x100000*(pid+1);
+	// int phoff = 0x34;					 // program header offset
+	int offset = 0x1000;				 // .text section offset
+	uint32_t elf = 0x100000 * (pid + 1); // physical memory addr to load
+	uint32_t uMainEntry = 0x100000 * (pid + 1);
 
-	for (i = 0; i < sector_count; i++) {
-		readSect((void*)(elf + i*512), first_sector+i);
+	for (i = 0; i < sector_count; i++)
+	{
+		readSect((void *)(elf + i * 512), first_sector + i);
 	}
-	
-	uMainEntry = ((struct ELFHeader *)elf)->entry; // entry address of the program
-	phoff = ((struct ELFHeader *)elf)->phoff;
-	offset = ((struct ProgramHeader *)(elf + phoff))->off;
 
-	for (i = 0; i < sector_count * 512; i++) {
+	uMainEntry = ((struct ELFHeader *)elf)->entry; // entry address of the program
+	// phoff = ((struct ELFHeader *)elf)->phoff;
+	// offset = ((struct ProgramHeader *)(elf + phoff))->off;
+
+	for (i = 0; i < sector_count * 512; i++)
+	{
 		*(uint8_t *)(elf + i) = *(uint8_t *)(elf + i + offset);
 	}
 
 	return uMainEntry;
 }
 
-
 /*
  * Schedules the next process to run
- * 
+ *
  * Returns:
  *   pid_t - The process ID of the scheduled process
  *           Returns -1 if no process is available for scheduling
  */
-uint32_t schedule() {
-	// TODO: Select the next process and perform context switching
+uint32_t schedule()
+{
+	// TODO: Select the next process
+
 
 	int if_find = 0;
 	for (int i = (current + 1) % MAX_PCB_NUM; i != current; i = (i+1) % MAX_PCB_NUM) {
@@ -95,8 +96,31 @@ uint32_t schedule() {
 	return pcb[current].pid;
 }
 
+void contextSwitch(int prev, int new)
+{
+	ProcessTable *cur_pt = pcb + new;
+	cur_pt->state = STATE_RUNNING;
+	current = new;
+	uint32_t tmp = pcb[current].stackTop;
+	pcb[current].stackTop = pcb[current].prevStackTop;
+	tss.esp0 = pcb[current].stackTop;
+
+	asm volatile("movl %0, %%esp" ::"m"(tmp));
+	asm volatile("popl %%gs\n\t"	  // 恢复 GS
+				 "popl %%fs\n\t"	  // 恢复 FS
+				 "popl %%es\n\t"	  // 恢复 ES
+				 "popl %%ds\n\t"	  // 恢复 DS
+				 "popal\n\t"		  // 恢复通用寄存器（EAX, EBX...）
+				 "addl $4, %%esp\n\t" // intr
+				 "addl $4, %%esp\n\t" // error node
+				 "iret"				  // 中断返回
+				 ::
+					 : "memory", "cc");
+}
+
 void irqHandle(struct StackFrame *sf)
-{ // pointer sf = esp
+{
+	// pointer sf = esp
 	/* Reassign segment register */
 	asm volatile("movw %%ax, %%ds" ::"a"(KSEL(SEG_KDATA)));
 	/*XXX Save esp to stackTop */
@@ -104,8 +128,7 @@ void irqHandle(struct StackFrame *sf)
 	pcb[current].prevStackTop = pcb[current].stackTop;
 	pcb[current].stackTop = (uint32_t)sf;
 
-	switch (sf->irq)
-	{
+	switch (sf->irq) {
 	case -1:
 		break;
 	case 0xd:
@@ -251,7 +274,6 @@ void sysPrint(struct StackFrame *sf)
 	return;
 }
 
-
 void sysFork(struct StackFrame *sf)
 {
 	// TODO: finish fork
@@ -318,8 +340,9 @@ void sysFork(struct StackFrame *sf)
 
 }
 
-void sysExec(struct StackFrame *sf) {
-	// sysExec是操作系统内核中实现程序替换功能的关键系统调用，它负责将当前进程的内存映像替换为新的程序映像。
+void sysExec(struct StackFrame *sf)
+{
+	// TODO: finish exec
 
 	//	sysExec主要完成以下任务：
 	//	1. 替换当前进程的地址空间

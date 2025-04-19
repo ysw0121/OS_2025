@@ -15,10 +15,12 @@
 #define STS_TG32    0xF         // 32-bit Trap Gate
 
 // GDT entries
-#define NR_SEGMENTS      10           // GDT size
-#define SEG_KCODE   1           // Kernel code
-#define SEG_KDATA   2           // Kernel data/stack
-#define SEG_TSS     (NR_SEGMENTS-1)
+#define NR_SEGMENTS      12 
+#define SEG_KCODE   1           		// Kernel code
+#define SEG_KDATA   2           		// Kernel data/stack
+#define SEG_IDLE_CODE   (NR_SEGMENTS-3)	// Idle code
+#define SEG_IDLE_DATA   (NR_SEGMENTS-2)	// Idle data/stack
+#define SEG_TSS     	(NR_SEGMENTS-1)
 
 // Selectors
 #define KSEL(desc) (((desc) << 3) | DPL_KERN)
@@ -43,12 +45,14 @@ struct StackFrame {
 };
 
 #define MAX_STACK_SIZE 1024
-#define MAX_PCB_NUM ((NR_SEGMENTS-2)/2)
+#define MAX_PCB_NUM ((NR_SEGMENTS-4)/2)
 
 #define STATE_RUNNABLE 0
 #define STATE_RUNNING 1
 #define STATE_BLOCKED 2
 #define STATE_DEAD 3
+#define STATE_WAITING 4
+
 
 #define MAX_TIME_COUNT 16
 
@@ -61,6 +65,10 @@ struct ProcessTable {
 	int timeCount;
 	int sleepTime;
 	uint32_t pid;
+
+	uint32_t ppid;
+	uint32_t childCount;
+
 	char name[32];
 };
 typedef struct ProcessTable ProcessTable;
