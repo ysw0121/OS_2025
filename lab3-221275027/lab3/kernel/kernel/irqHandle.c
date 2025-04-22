@@ -347,6 +347,9 @@ void sysFork(struct StackFrame *sf)
 	}
 
 	pcb[new_index].pid = new_index;
+	pcb[new_index].ppid = current;
+	pcb[new_index].childCount = 0;
+
 	pcb[new_index].state = STATE_RUNNABLE;
 	pcb[new_index].timeCount = 0;
 	pcb[new_index].sleepTime = 0;
@@ -392,12 +395,19 @@ void sysExec(struct StackFrame *sf)
 
 	uint32_t entry = loadUMain(sf->ecx, sf->edx, current);
 
+	if (entry == 0) {
+        sf->eax = -1; // 加载失败
+        return;
+    }
+
     // 2. 初始化新程序的执行环境
     sf->eip = entry;  // 设置程序入口地址
     sf->esp = 0x100000;  // 设置用户栈指针
 	sf->ebp = 0x100000;  // 设置基址指针
 	sf->irq = 0;  // 清除中断号
 	sf->error = 0;  // 清除错误码
+	sf->xxx = 0;  // 清除占位符
+	
 
     
     // 设置段寄存器为用户态
@@ -437,8 +447,8 @@ void sysSleep(struct StackFrame *sf)
 		pcb[current].state = STATE_BLOCKED;
 		pcb[current].sleepTime = sf->ecx;
 		asm volatile("int $0x20");
-
-		contextSwitch(current, current);
+		sf->eax = pcb[current].sleepTime;
+		// schedule();
 
 
 		return;
@@ -456,8 +466,10 @@ void sysExit(struct StackFrame *sf)
 
 	pcb[current].state = STATE_DEAD;
 	asm volatile("int $0x20");
+	sf->eax = 0; // 返回值为0
 
-	contextSwitch(current, current);
+	// contextSwitch(current, current);
+	// timerHandle(sf);
 
 	return;
 
