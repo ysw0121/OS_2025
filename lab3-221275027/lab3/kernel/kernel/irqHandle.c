@@ -81,19 +81,7 @@ uint32_t schedule()
 		current = (current + 1) % MAX_PCB_NUM;
 		if (pcb[current].state == STATE_RUNNABLE)
 		{
-			// pcb[current].state = STATE_RUNNING;
 			pcb[current].timeCount = 0;
-			// uint32_t tmpStackTop = pcb[current].stackTop;
-			// pcb[current].stackTop = pcb[current].prevStackTop;
-			// tss.esp0 = (uint32_t) & (pcb[current].stackTop);
-			// asm volatile("movl %0, %%esp" ::"m"(tmpStackTop)); // switch kernel stack
-			// asm volatile("popl %gs");
-			// asm volatile("popl %fs");
-			// asm volatile("popl %es");
-			// asm volatile("popl %ds");
-			// asm volatile("popal");
-			// asm volatile("addl $8, %esp");
-			// asm volatile("iret");
 			contextSwitch(current, current);
 			return pcb[current].pid; // 返回新调度进程的PID
 		}
@@ -102,25 +90,14 @@ uint32_t schedule()
 	// 2. 如果没有可运行的用户进程，检查当前进程状态
 	if (pcb[current].state == STATE_RUNNING)
 	{
-		return -1;
 		pcb[current].state = STATE_RUNNABLE;
 		pcb[current].timeCount = 0;
+		return -1;
 	}
 	
 	// 3. 回退到内核进程(pid=0)
 	current = 0;
 	pcb[current].timeCount = 0;
-	// uint32_t tmpStackTop = pcb[current].stackTop;
-	// pcb[current].stackTop = pcb[current].prevStackTop;
-	// tss.esp0 = (uint32_t) & (pcb[current].stackTop);
-	// asm volatile("movl %0, %%esp" ::"m"(tmpStackTop)); // switch kernel stack
-	// asm volatile("popl %gs");
-	// asm volatile("popl %fs");
-	// asm volatile("popl %es");
-	// asm volatile("popl %ds");
-	// asm volatile("popal");
-	// asm volatile("addl $8, %esp");
-	// asm volatile("iret");
 	contextSwitch(current, current);
 	return pcb[current].pid; // 返回内核进程PID
 }
@@ -186,48 +163,53 @@ void timerHandle(struct StackFrame *sf)
 {
 	// TODO
 
-	int i;
-	for (i = 0; i < MAX_PCB_NUM; i++) {
-		if (pcb[i].state == STATE_BLOCKED) {
-		    pcb[i].sleepTime--;
-		    if(pcb[i].sleepTime == 0)
-		    	pcb[i].state = STATE_RUNNABLE;
-		}
-	}
-	if (pcb[current].state == STATE_RUNNING) {
-		if (pcb[current].timeCount < MAX_TIME_COUNT)
-			pcb[current].timeCount++;
-		else {
-	    		pcb[current].timeCount = 0;
-	    		pcb[current].state = STATE_RUNNABLE;
-		}
-	}
-	if (pcb[current].state != STATE_RUNNING) {
-		for (i = 0; i < MAX_PCB_NUM; i++){
-			if (i != current && pcb[i].state == STATE_RUNNABLE) break;
-		}
-		if (i == MAX_PCB_NUM) i = 0;
-		
-		current = i;	
-		pcb[current].state = STATE_RUNNING;
-		
+	// 更新所有阻塞进程的睡眠时间
+    for (int i = 0; i < MAX_PCB_NUM; i++) {
+        if (pcb[i].state == STATE_BLOCKED) {
+            pcb[i].sleepTime--;
+            if(pcb[i].sleepTime == 0) {
+                pcb[i].state = STATE_RUNNABLE;
+            }
+        }
+    }
 
-		// contextSwitch(current, current);
-		// schedule();
-		uint32_t tmpStackTop = pcb[current].stackTop;
-		// tss.esp0 = pcb[current].prevStackTop;
-		tss.esp0 = (uint32_t) & (pcb[current].stackTop);
-		pcb[current].stackTop = pcb[current].prevStackTop;
-		asm volatile("movl %0, %%esp"::"m"(tmpStackTop));
-		asm volatile("popl %gs");
-		asm volatile("popl %fs");
-		asm volatile("popl %es");
-		asm volatile("popl %ds");
-		asm volatile("popal");
-		asm volatile("addl $8, %esp");
-		asm volatile("iret");
-	}
-	return;
+    // 更新当前进程时间片
+    if (pcb[current].state == STATE_RUNNING) {
+        if (pcb[current].timeCount < MAX_TIME_COUNT) {
+            pcb[current].timeCount++;
+        } else {
+            pcb[current].timeCount = 0;
+            pcb[current].state = STATE_RUNNABLE;
+        }
+    }
+
+    // 如果需要调度新进程
+    if (pcb[current].state != STATE_RUNNING) {
+        int next = -1;
+        
+        // 首先尝试调度非idle的用户进程
+        for (int i = 1; i < MAX_PCB_NUM; i++) {
+            if (pcb[i].state == STATE_RUNNABLE) {
+                next = i;
+                break;
+            }
+        }
+        
+        // 如果没有可运行的用户进程，检查idle进程
+        if (next == -1 && pcb[0].state == STATE_RUNNABLE) {
+            next = 0;
+        }
+        
+        // 如果仍然没有可运行进程，保持当前进程
+        if (next == -1) {
+            return;
+        }
+        
+        // 执行进程切换
+		contextSwitch(current, next);
+
+    }
+    return;
 }
 
 void syscallHandle(struct StackFrame *sf)
@@ -449,15 +431,8 @@ void sysSleep(struct StackFrame *sf)
 		pcb[current].sleepTime = sf->ecx;
 		asm volatile("int $0x20");
 		sf->eax = pcb[current].sleepTime;
-		// schedule();
-
-
 		return;
 	}
-	
-
-	
-
 }
 
 void sysExit(struct StackFrame *sf)
@@ -468,13 +443,7 @@ void sysExit(struct StackFrame *sf)
 	pcb[current].state = STATE_DEAD;
 	asm volatile("int $0x20");
 	sf->eax = 0; // 返回值为0
-
-	// contextSwitch(current, current);
-	// timerHandle(sf);
-
 	return;
-
-	
 }
 
 void sysGetPid(struct StackFrame *sf)
@@ -484,5 +453,4 @@ void sysGetPid(struct StackFrame *sf)
 	// 将当前进程的pid返回
 	sf->eax =pcb[current].pid;
 	return;
-
 }
