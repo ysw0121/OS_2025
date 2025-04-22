@@ -71,6 +71,7 @@ uint32_t schedule()
 {
 	// TODO: Select the next process
 
+	// return -1;
 	pcb[current].timeCount = 0;
 	pcb[current].state = STATE_RUNNABLE;
 	
@@ -211,20 +212,20 @@ void timerHandle(struct StackFrame *sf)
 		pcb[current].state = STATE_RUNNING;
 		
 
-		contextSwitch(current, current);
+		// contextSwitch(current, current);
 		// schedule();
-		// uint32_t tmpStackTop = pcb[current].stackTop;
-		// // tss.esp0 = pcb[current].prevStackTop;
-		// tss.esp0 = (uint32_t) & (pcb[current].stackTop);
-		// pcb[current].stackTop = pcb[current].prevStackTop;
-		// asm volatile("movl %0, %%esp"::"m"(tmpStackTop));
-		// asm volatile("popl %gs");
-		// asm volatile("popl %fs");
-		// asm volatile("popl %es");
-		// asm volatile("popl %ds");
-		// asm volatile("popal");
-		// asm volatile("addl $8, %esp");
-		// asm volatile("iret");
+		uint32_t tmpStackTop = pcb[current].stackTop;
+		// tss.esp0 = pcb[current].prevStackTop;
+		tss.esp0 = (uint32_t) & (pcb[current].stackTop);
+		pcb[current].stackTop = pcb[current].prevStackTop;
+		asm volatile("movl %0, %%esp"::"m"(tmpStackTop));
+		asm volatile("popl %gs");
+		asm volatile("popl %fs");
+		asm volatile("popl %es");
+		asm volatile("popl %ds");
+		asm volatile("popal");
+		asm volatile("addl $8, %esp");
+		asm volatile("iret");
 	}
 	return;
 }
@@ -402,8 +403,8 @@ void sysExec(struct StackFrame *sf)
 
     // 2. 初始化新程序的执行环境
     sf->eip = entry;  // 设置程序入口地址
-    sf->esp = 0x100000;  // 设置用户栈指针
-	sf->ebp = 0x100000;  // 设置基址指针
+    sf->esp = 0x100000*(current+1);  // 设置用户栈指针
+	sf->ebp = 0x100000*(current+1);  // 设置基址指针
 	sf->irq = 0;  // 清除中断号
 	sf->error = 0;  // 清除错误码
 	sf->xxx = 0;  // 清除占位符
