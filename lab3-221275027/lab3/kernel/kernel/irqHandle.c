@@ -109,7 +109,8 @@ void contextSwitch(int prev, int new)
 	current = new;
 	uint32_t tmp = pcb[current].stackTop;
 	pcb[current].stackTop = pcb[current].prevStackTop;
-	tss.esp0 = pcb[current].stackTop;
+	// tss.esp0 = pcb[current].stackTop;
+	tss.esp0 = (uint32_t)&(pcb[current].stackTop);
 
 	asm volatile("movl %0, %%esp" ::"m"(tmp));
 	asm volatile("popl %%gs\n\t"	  // 恢复 GS
