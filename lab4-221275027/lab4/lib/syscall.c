@@ -595,20 +595,28 @@ int sem_destroy(sem_t *sem) {
 
 int createSharedVariable(sharedvar_t *svar, int value) {
 	// TODO
-	return -1;
+
+	return syscall(SYS_SHAREDVAR, SHAREDVAR_CREATE, (uint32_t)svar, value, 0, 0);
+	// return -1;
 }
 
 int destroySharedVariable(sharedvar_t *svar) {
 	// TODO
-	return -1;
+
+	return syscall(SYS_SHAREDVAR, SHAREDVAR_DESTROY, (uint32_t)svar, 0, 0, 0);
+	// return -1;
 }
 
 int readSharedVariable(sharedvar_t *svar) {
 	// TODO
-	return -1;
+
+	return syscall(SYS_SHAREDVAR, SHAREDVAR_READ, (uint32_t)svar, 0, 0, 0);
+	// return -1;
 }
 
 int writeSharedVariable(sharedvar_t *svar, int value) {
 	// TODO
-	return -1;
+
+	return syscall(SYS_SHAREDVAR, SHAREDVAR_WRITE, (uint32_t)svar, value, 0, 0);
+	// return -1;
 }
