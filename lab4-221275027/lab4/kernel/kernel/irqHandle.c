@@ -534,6 +534,32 @@ void sysSemInit(struct StackFrame *sf) {
 
 void sysSemWait(struct StackFrame *sf) {
 	// TODO: complete `SemWait` and note that you need to consider some special situations
+	
+
+	uint32_t semID = sf->edx;
+	if (semID >= MAX_SEM_NUM || sem[semID].state == 0)
+	{
+		pcb[current].regs.eax = -1;
+	}
+	else
+	{
+		sem[semID].value--;
+		pcb[current].regs.eax = 0;
+		if (sem[semID].value < 0)
+		{
+
+			pcb[current].blocked.next = sem[semID].pcb.next;
+			pcb[current].blocked.prev = &(sem[semID].pcb);
+			sem[semID].pcb.next = &(pcb[current].blocked);
+			(pcb[current].blocked.next)->prev = &(pcb[current].blocked);
+
+			pcb[current].state = STATE_BLOCKED;
+			pcb[current].sleepTime = -1;
+			asm volatile("int $0x20");
+			return;
+		}
+	}
+
 }
 
 void sysSemPost(struct StackFrame *sf) {
@@ -544,11 +570,32 @@ void sysSemPost(struct StackFrame *sf) {
 		return;
 	}
 	// TODO: complete other situations
+
+	else
+	{
+		sem[i].value++;
+		pcb[current].regs.eax = 0;
+		if (sem[i].value <= 0)
+		{
+			ProcessTable *pt = (ProcessTable *)((uint32_t)(sem[i].pcb.prev) -
+													(uint32_t) &
+												(((ProcessTable *)0)->blocked));
+			pt->state = STATE_RUNNABLE;
+			pt->sleepTime = 0;
+			sem[i].pcb.prev = (sem[i].pcb.prev)->prev;
+			(sem[i].pcb.prev)->next = &(sem[i].pcb);
+		}
+	}
+	return;
 }
 
 void sysSemDestroy(struct StackFrame *sf) {
 	// TODO: complete `SemDestroy`
+
+	uint32_t semID = *((uint32_t *)sf->edx);
+	sem[semID].state = 0;
 	return;
+
 }
 
 void sysSharedVar(struct StackFrame *sf) {
