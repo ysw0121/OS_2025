@@ -234,6 +234,16 @@ void keyboardHandle(struct StackFrame *sf) {
 
 	if (dev[STD_IN].value < 0) { // with process blocked
 		// TODO: deal with blocked situation
+
+		dev[STD_IN].value++;
+
+		pt = (ProcessTable *)((uint32_t)(dev[STD_IN].pcb.prev) -
+									(uint32_t) &
+								(((ProcessTable *)0)->blocked));
+		pt->state = STATE_RUNNABLE; 
+		pt->sleepTime = 0;
+		dev[STD_IN].pcb.prev = (dev[STD_IN].pcb.prev)->prev;
+		(dev[STD_IN].pcb.prev)->next = &(dev[STD_IN].pcb);
 	}
 
 	return;
