@@ -537,16 +537,13 @@ void sysSemWait(struct StackFrame *sf) {
 	
 
 	uint32_t semID = sf->edx;
-	if (semID >= MAX_SEM_NUM || sem[semID].state == 0)
-	{
+	if (semID >= MAX_SEM_NUM || sem[semID].state == 0){
 		pcb[current].regs.eax = -1;
 	}
-	else
-	{
+	else{
 		sem[semID].value--;
 		pcb[current].regs.eax = 0;
-		if (sem[semID].value < 0)
-		{
+		if (sem[semID].value < 0){
 
 			pcb[current].blocked.next = sem[semID].pcb.next;
 			pcb[current].blocked.prev = &(sem[semID].pcb);
@@ -559,6 +556,21 @@ void sysSemWait(struct StackFrame *sf) {
 			return;
 		}
 	}
+
+	// if (sem[i].state == 1) {
+	// 	pcb[current].regs.eax = 0;
+	// 	sem[i].value --;
+	// 	if (sem[i].value < 0) {
+	// 		pcb[current].state = STATE_BLOCKED;
+	// 		process_into_block(SEM, current, i);
+	// 		asm volatile("int $0x20");
+	// 	}
+	// 	return;
+	// }
+	// else {
+	// 	pcb[current].regs.eax = -1;
+	// 	return;
+	// }
 
 }
 
@@ -577,7 +589,7 @@ void sysSemPost(struct StackFrame *sf) {
 		pcb[current].regs.eax = 0;
 		if (sem[i].value <= 0)
 		{
-			ProcessTable *pt = (ProcessTable *)((uint32_t)(sem[i].pcb.prev) -
+			pt = (ProcessTable *)((uint32_t)(sem[i].pcb.prev) -
 													(uint32_t) &
 												(((ProcessTable *)0)->blocked));
 			pt->state = STATE_RUNNABLE;
@@ -593,7 +605,14 @@ void sysSemDestroy(struct StackFrame *sf) {
 	// TODO: complete `SemDestroy`
 
 	uint32_t semID = *((uint32_t *)sf->edx);
-	sem[semID].state = 0;
+	if (sem[semID].state == 1) {
+		pcb[current].regs.eax = 0;
+		sem[semID].state = 0;
+		asm volatile("int $0x20");
+	}
+	else {
+		pcb[current].regs.eax = -1;
+	}
 	return;
 
 }
@@ -619,20 +638,28 @@ void sysSharedVar(struct StackFrame *sf) {
 
 void sysSVarCreate(struct StackFrame *sf){
 	// TODO: complete SharedVarCreate
+
+
 	return;
 }
 
 void sysSVarDestroy(struct StackFrame *sf){
 	// TODO: complete SharedVarDestroy
+
+
 	return;
 }
 
 void sysSVarRead(struct StackFrame *sf) {
 	// TODO: complete SharedVarRead
+
+
 	return;
 }
 
 void sysSVarWrite(struct StackFrame *sf){
 	// TODO: complete SharedVarWrite
+
+
 	return;
 }
