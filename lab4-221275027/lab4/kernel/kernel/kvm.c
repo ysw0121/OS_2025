@@ -85,6 +85,12 @@ void initDev() {
 void initSharedVariable() {
 	// TODO: init Shared Variable list
 
+	int i;
+	for (i = 0; i < MAX_SHARED_VAR_NUM; i++) {
+		sharedVar[i].state = 0; // 0: not in use; 1: in use
+		sharedVar[i].value = 0; // initial value
+		
+	}
 }
 
 void initProc() {
