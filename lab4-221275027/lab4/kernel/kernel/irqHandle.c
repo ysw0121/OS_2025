@@ -343,50 +343,6 @@ void sysRead(struct StackFrame *sf) {
 void sysReadStdIn(struct StackFrame *sf) {
 	// TODO: complete `stdin`
 
-	// if (dev[STD_IN].value == 0) // no process blocked
-	// {
-	// 	dev[STD_IN].value--;
-	// 	pcb[current].blocked.next = dev[STD_IN].pcb.next;
-	// 	pcb[current].blocked.prev = &(dev[STD_IN].pcb);
-	// 	dev[STD_IN].pcb.next = &(pcb[current].blocked);
-	// 	(pcb[current].blocked.next)->prev = &(pcb[current].blocked);
-	// 	pcb[current].state = STATE_BLOCKED;
-	// 	pcb[current].sleepTime = -1;
-	// 	asm volatile("int $0x20");
-	// 	// 有字符可以读取了
-	// 	uint32_t size = (uint32_t)sf->ebx;
-	// 	int sel = sf->ds;
-	// 	char *target = (char *)sf->edx;
-	// 	char ch;
-	// 	int i = 0;
-	// 	asm volatile("movw %0, %%es" ::"m"(sel));
-	// 	while (i < size - 1)
-	// 	{
-	// 		if (bufferHead == bufferTail)
-	// 		{
-	// 			break;
-	// 		}
-	// 		if (keyBuffer[bufferHead] == '\n')
-	// 		{
-	// 			break;
-	// 		}
-	// 		ch = getChar(keyBuffer[bufferHead]);
-	// 		putChar(ch);
-	// 		bufferHead = (bufferHead + 1) % MAX_KEYBUFFER_SIZE;
-	// 		asm volatile("movb %1, %%es:(%0)" ::"r"(target + i), "r"(ch));
-	// 		i++;
-	// 	}
-	// 	asm volatile("movb $0x00, %%es:(%0)" ::"r"(target + i));
-	// 	pcb[current].regs.eax = i;
-	// }
-	// else
-	// {
-	// 	pcb[current].regs.eax = -1;
-	// }
-	// return;
-
-
-
 
 	if (dev[STD_IN].value < 0) {
 		pcb[current].regs.eax = -1;
@@ -553,14 +509,12 @@ void sysSemInit(struct StackFrame *sf) {
 	// TODO: complete `SemInit`
 
 	int32_t value = sf->edx;
-	for (int i = 0; i < MAX_SEM_NUM; i++)
-	{
-		if (sem[i].state == 0)
-		{
+	for (int i = 0; i < MAX_SEM_NUM; i++){
+		if (sem[i].state == 0){
 			sem[i].state = 1;
 			sem[i].value = value;
-			sem[i].pcb.next = &(sem[i].pcb);
-			sem[i].pcb.prev = &(sem[i].pcb);
+			// sem[i].pcb.next = &(sem[i].pcb);
+			// sem[i].pcb.prev = &(sem[i].pcb);
 			pcb[current].regs.eax = i;
 			return;
 		}
@@ -574,7 +528,7 @@ void sysSemWait(struct StackFrame *sf) {
 	
 
 	uint32_t semID = sf->edx;
-	if (semID >= MAX_SEM_NUM || sem[semID].state == 0){
+	if (semID >= MAX_SEM_NUM || semID < 0){
 		pcb[current].regs.eax = -1;
 	}
 	else{
@@ -620,15 +574,11 @@ void sysSemPost(struct StackFrame *sf) {
 	}
 	// TODO: complete other situations
 
-	else
-	{
+	else {
 		sem[i].value++;
 		pcb[current].regs.eax = 0;
-		if (sem[i].value <= 0)
-		{
-			pt = (ProcessTable *)((uint32_t)(sem[i].pcb.prev) -
-													(uint32_t) &
-												(((ProcessTable *)0)->blocked));
+		if (sem[i].value <= 0){
+			pt = (ProcessTable *)((uint32_t)(sem[i].pcb.prev) - (uint32_t) & (((ProcessTable *)0)->blocked));
 			pt->state = STATE_RUNNABLE;
 			pt->sleepTime = 0;
 			pt->timeCount = 1;
@@ -643,17 +593,16 @@ void sysSemDestroy(struct StackFrame *sf) {
 	// TODO: complete `SemDestroy`
 
 	uint32_t semID = *((uint32_t *)sf->edx);
-	if (sem[semID].state == 1) {
-		pcb[current].regs.eax = 0;
-		sem[semID].state = 0;
-		sem[semID].pcb.next = &(sem[semID].pcb);
-		sem[semID].pcb.prev = &(sem[semID].pcb);
-
-		asm volatile("int $0x20");
-	}
-	else {
+	if (sem[semID].state == 0) {
 		pcb[current].regs.eax = -1;
+		return;
 	}
+	pcb[current].regs.eax = 0;
+	sem[semID].state = 0;
+	sem[semID].pcb.next = &(sem[semID].pcb);
+	sem[semID].pcb.prev = &(sem[semID].pcb);
+
+	asm volatile("int $0x20");
 	return;
 
 }
