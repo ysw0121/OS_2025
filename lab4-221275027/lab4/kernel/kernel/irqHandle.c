@@ -237,11 +237,10 @@ void keyboardHandle(struct StackFrame *sf) {
 
 		dev[STD_IN].value++;
 
-		pt = (ProcessTable *)((uint32_t)(dev[STD_IN].pcb.prev) -
-									(uint32_t) &
-								(((ProcessTable *)0)->blocked));
+		pt = (ProcessTable *)((uint32_t)(dev[STD_IN].pcb.prev) - (uint32_t) & (((ProcessTable *)0)->blocked));
 		pt->state = STATE_RUNNABLE; 
 		pt->sleepTime = 0;
+		pt->timeCount = 1;
 		dev[STD_IN].pcb.prev = (dev[STD_IN].pcb.prev)->prev;
 		(dev[STD_IN].pcb.prev)->next = &(dev[STD_IN].pcb);
 	}
@@ -344,46 +343,84 @@ void sysRead(struct StackFrame *sf) {
 void sysReadStdIn(struct StackFrame *sf) {
 	// TODO: complete `stdin`
 
-	if (dev[STD_IN].value == 0) // no process blocked
-	{
+	// if (dev[STD_IN].value == 0) // no process blocked
+	// {
+	// 	dev[STD_IN].value--;
+	// 	pcb[current].blocked.next = dev[STD_IN].pcb.next;
+	// 	pcb[current].blocked.prev = &(dev[STD_IN].pcb);
+	// 	dev[STD_IN].pcb.next = &(pcb[current].blocked);
+	// 	(pcb[current].blocked.next)->prev = &(pcb[current].blocked);
+	// 	pcb[current].state = STATE_BLOCKED;
+	// 	pcb[current].sleepTime = -1;
+	// 	asm volatile("int $0x20");
+	// 	// 有字符可以读取了
+	// 	uint32_t size = (uint32_t)sf->ebx;
+	// 	int sel = sf->ds;
+	// 	char *target = (char *)sf->edx;
+	// 	char ch;
+	// 	int i = 0;
+	// 	asm volatile("movw %0, %%es" ::"m"(sel));
+	// 	while (i < size - 1)
+	// 	{
+	// 		if (bufferHead == bufferTail)
+	// 		{
+	// 			break;
+	// 		}
+	// 		if (keyBuffer[bufferHead] == '\n')
+	// 		{
+	// 			break;
+	// 		}
+	// 		ch = getChar(keyBuffer[bufferHead]);
+	// 		putChar(ch);
+	// 		bufferHead = (bufferHead + 1) % MAX_KEYBUFFER_SIZE;
+	// 		asm volatile("movb %1, %%es:(%0)" ::"r"(target + i), "r"(ch));
+	// 		i++;
+	// 	}
+	// 	asm volatile("movb $0x00, %%es:(%0)" ::"r"(target + i));
+	// 	pcb[current].regs.eax = i;
+	// }
+	// else
+	// {
+	// 	pcb[current].regs.eax = -1;
+	// }
+	// return;
+
+
+
+
+	if (dev[STD_IN].value < 0) {
+		pcb[current].regs.eax = -1;
+		return;
+	}
+	if (dev[STD_IN].value == 0) {
 		dev[STD_IN].value--;
+
 		pcb[current].blocked.next = dev[STD_IN].pcb.next;
 		pcb[current].blocked.prev = &(dev[STD_IN].pcb);
 		dev[STD_IN].pcb.next = &(pcb[current].blocked);
 		(pcb[current].blocked.next)->prev = &(pcb[current].blocked);
+		
 		pcb[current].state = STATE_BLOCKED;
 		pcb[current].sleepTime = -1;
 		asm volatile("int $0x20");
-		// 有字符可以读取了
-		uint32_t size = (uint32_t)sf->ebx;
-		int sel = sf->ds;
-		char *target = (char *)sf->edx;
-		char ch;
-		int i = 0;
-		asm volatile("movw %0, %%es" ::"m"(sel));
-		while (i < size - 1)
-		{
-			if (bufferHead == bufferTail)
-			{
-				break;
-			}
-			if (keyBuffer[bufferHead] == '\n')
-			{
-				break;
-			}
-			ch = getChar(keyBuffer[bufferHead]);
-			putChar(ch);
-			bufferHead = (bufferHead + 1) % MAX_KEYBUFFER_SIZE;
-			asm volatile("movb %1, %%es:(%0)" ::"r"(target + i), "r"(ch));
-			i++;
-		}
-		asm volatile("movb $0x00, %%es:(%0)" ::"r"(target + i));
-		pcb[current].regs.eax = i;
 	}
-	else
-	{
-		pcb[current].regs.eax = -1;
+
+	int sel = sf->ds;
+	char *str = (char*)sf->edx;
+	int size = sf->ebx;
+	char c = 0;
+	asm volatile("movw %0, %%es"::"m"(sel));
+	int i;
+	for (i = 0; i < size - 1; i++) {
+		if (bufferHead == bufferTail) break;
+		c = getChar(keyBuffer[bufferHead]);
+		bufferHead = (bufferHead + 1) % MAX_KEYBUFFER_SIZE;
+		putChar(c);
+		if (c != 0) asm volatile("movb %0, %%es:(%1)"::"r"(c),"r"(str + i));
+		else i--;
 	}
+	asm volatile("movb $0x00, %%es:(%0)"::"r"(str + i));
+	pcb[current].regs.eax = i;
 	return;
 
 }
@@ -594,6 +631,7 @@ void sysSemPost(struct StackFrame *sf) {
 												(((ProcessTable *)0)->blocked));
 			pt->state = STATE_RUNNABLE;
 			pt->sleepTime = 0;
+			pt->timeCount = 1;
 			sem[i].pcb.prev = (sem[i].pcb.prev)->prev;
 			(sem[i].pcb.prev)->next = &(sem[i].pcb);
 		}
@@ -608,6 +646,9 @@ void sysSemDestroy(struct StackFrame *sf) {
 	if (sem[semID].state == 1) {
 		pcb[current].regs.eax = 0;
 		sem[semID].state = 0;
+		sem[semID].pcb.next = &(sem[semID].pcb);
+		sem[semID].pcb.prev = &(sem[semID].pcb);
+
 		asm volatile("int $0x20");
 	}
 	else {
