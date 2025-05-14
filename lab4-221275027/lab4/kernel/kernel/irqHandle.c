@@ -633,7 +633,7 @@ void sysSVarCreate(struct StackFrame *sf) {
 	for (int i = 0; i < MAX_SHARED_VAR_NUM; i++) {
 		if (sharedVar[i].state == 0) { // 0 表示未使用
 			sharedVar[i].state = 1; // 标记为已使用
-			sharedVar[i].value = sf->edx; // 初始化共享变量的值
+			sharedVar[i].value = sf->ebx; // 初始化共享变量的值
 			sf->eax = i; // 返回共享变量的 ID
 			return;
 		}
