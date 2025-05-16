@@ -33,23 +33,79 @@ void producer_customer() {
 }
 
 
-// 读者-写者问题
-// 多个读者进程可以同时读取共享变量，但写者进程必须独占访问。
-// 需要实现两种同步策略：
-// 1. 读者优先（Reader-Priority）：只要还有读者在读，写者就必须等待。
-// 2. 读写公平（Fair）：避免读者或写者无限等待，确保公平竞争。
+// 根据伪代码写的，按照要求应该是两个策略，这个函数没用了
+void reader_writer() {
+	// 初始化共享变量和信号量
+	sharedvar_t shared_data;
+	sem_t write_mutex, count_mutex;
+	int reader_count = 0;
+
+	sem_init(&write_mutex, 1);  // 控制读写互斥
+	sem_init(&count_mutex, 1);  // 控制对读者计数的互斥修改
+	createSharedVariable(&shared_data, 0);
+
+	// 创建读者进程
+	if (fork() == 0) {
+		// 读者进程
+		while (1) {
+			sem_wait(&count_mutex);
+			if (reader_count == 0) {
+				sem_wait(&write_mutex);
+			}
+			reader_count++;
+			sem_post(&count_mutex);
+
+			// 读操作
+			int value = readSharedVariable(&shared_data);
+			printf("Reader: read value = %d\n", value);
+			sleep(64);
+
+			sem_wait(&count_mutex);
+			reader_count--;
+			if (reader_count == 0) {
+				sem_post(&write_mutex);
+			}
+			sem_post(&count_mutex);
+			
+			sleep(128);
+		}
+	} 
+	else {
+		// 写者进程
+		while (1) {
+			sem_wait(&write_mutex);
+			
+			// 写操作
+			int value = readSharedVariable(&shared_data);
+			value++;
+			writeSharedVariable(&shared_data, value);
+			printf("Writer: wrote value = %d\n", value);
+			sleep(128);
+
+			sem_post(&write_mutex);
+			sleep(256);
+		}
+	}
+}
+
+
 void reader_priority() {
+	
 	sem_t mutex, wrt;
 	int read_count = 0;
 	sharedvar_t shared_var;
 
 	// 初始化信号量和共享变量
-	sem_init(&mutex, 1);
+	sem_init(&mutex, 5);
 	sem_init(&wrt, 1);
 	createSharedVariable(&shared_var, 0);
 
-	int id = fork();
-	if (id == 0) { // 子进程作为读者
+	int id=0;
+	for (int i = 0; i < 4; i++) {
+		if (id == 0) id = fork();
+		else if (id > 0) break;
+	}
+	if (id != 0) { // 子进程作为读者
 		while (1) {
 			
 			sem_wait(&mutex);
@@ -89,7 +145,9 @@ void reader_priority() {
 			sleep(256);
 		}
 	}
+   
 }
+
 void fair() {
 	sem_t mutex, rw, w;
 	int readcount = 0;
@@ -101,7 +159,9 @@ void fair() {
 	sem_init(&w, 1);
 	createSharedVariable(&shared_var, 0);
 
-	int id = fork();
+
+	int id=fork();
+	
 	if (id == 0) { // 子进程作为读者
 		while (1) {
 			sem_wait(&w);
@@ -145,22 +205,23 @@ void fair() {
 	}
 }
 
+
 int uEntry(void)
 {
 	// For lab4.1
 	// Test 'scanf'
-	// int dec = 0;
-	// int hex = 0;
-	// char str[6];
-	// char cha = 0;
+	int dec = 0;
+	int hex = 0;
+	char str[6];
+	char cha = 0;
 	int ret = 0;
-	// while (1) {
-	// 	printf("Input:\" Test %%c Test %%6s %%d %%x\"\n");
-	// 	ret = scanf(" Test %c Test %6s %d %x", &cha, str, &dec, &hex);
-	// 	printf("Ret: %d; %c, %s, %d, %x.\n", ret, cha, str, dec, hex);
-	// 	if (ret == 4)
-	// 		break;
-	// }
+	while (1) {
+		printf("Input:\" Test %%c Test %%6s %%d %%x\"\n");
+		ret = scanf(" Test %c Test %6s %d %x", &cha, str, &dec, &hex);
+		printf("Ret: %d; %c, %s, %d, %x.\n", ret, cha, str, dec, hex);
+		if (ret == 4)
+			break;
+	}
 
 	// For lab4.2
 	// Test 'Semaphore'
@@ -252,13 +313,18 @@ int uEntry(void)
 	// producer_customer();
 	// printf("============================================\n");
 
-	// printf("==============TEST READER_PRIO PROB=============\n");
+	// printf("==================TEST READER_PRIORITY PROB=============\n");
 	// reader_priority();
-	// printf("============================================\n");
+	// printf("=====================================================\n");
 
-	printf("==============TEST FAIR PROB=============\n");
-	fair();
-	printf("============================================\n");
+	// printf("==================TEST FAIR PROB=============\n");
+	// fair();
+	// printf("=====================================================\n");
+
+
+	// printf("==============TEST READER_WRITER PROB=============\n");
+	// reader_writer();
+	// printf("============================================\n");
 	
 	return 0;
 }
