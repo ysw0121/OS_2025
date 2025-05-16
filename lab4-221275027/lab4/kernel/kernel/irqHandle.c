@@ -548,21 +548,6 @@ void sysSemWait(struct StackFrame *sf) {
 		}
 	}
 
-	// if (sem[i].state == 1) {
-	// 	pcb[current].regs.eax = 0;
-	// 	sem[i].value --;
-	// 	if (sem[i].value < 0) {
-	// 		pcb[current].state = STATE_BLOCKED;
-	// 		process_into_block(SEM, current, i);
-	// 		asm volatile("int $0x20");
-	// 	}
-	// 	return;
-	// }
-	// else {
-	// 	pcb[current].regs.eax = -1;
-	// 	return;
-	// }
-
 }
 
 void sysSemPost(struct StackFrame *sf) {
@@ -628,13 +613,12 @@ void sysSharedVar(struct StackFrame *sf) {
 
 void sysSVarCreate(struct StackFrame *sf) {
 	// TODO: complete SharedVarCreate
-
-	// 遍历共享变量数组，找到一个未使用的槽位
+	
 	for (int i = 0; i < MAX_SHARED_VAR_NUM; i++) {
-		if (sharedVar[i].state == 0) { // 0 表示未使用
-			sharedVar[i].state = 1; // 标记为已使用
-			sharedVar[i].value = sf->ebx; // 初始化共享变量的值
-			sf->eax = i; // 返回共享变量的 ID
+		if (sharedVar[i].state == 0) { 
+			sharedVar[i].state = 1; 
+			sharedVar[i].value = sf->ebx; 
+			sf->eax = i;
 			return;
 		}
 	}
@@ -645,36 +629,30 @@ void sysSVarCreate(struct StackFrame *sf) {
 void sysSVarDestroy(struct StackFrame *sf) {
 	// TODO: complete SharedVarDestroy
 
-	// 获取共享变量的 ID
 	uint32_t svarID = sf->edx;
 
-	// 检查 ID 是否有效
 	if (svarID >= MAX_SHARED_VAR_NUM || sharedVar[svarID].state == 0) {
-		sf->eax = -1; // 返回 -1 表示失败
+		sf->eax = -1; 
 		return;
 	}
-
 	// 将共享变量标记为未使用
 	sharedVar[svarID].state = 0;
 	sharedVar[svarID].value = 0;
 
-	sf->eax = 0; // 返回 0 表示成功
+	sf->eax = 0;
 	return;
 }
 
 void sysSVarRead(struct StackFrame *sf) {
 	// TODO: complete SharedVarRead
 
-	// 获取共享变量的 ID
 	uint32_t svarID = sf->edx;
 
-	// 检查 ID 是否有效
 	if (svarID >= MAX_SHARED_VAR_NUM || sharedVar[svarID].state == 0) {
-		sf->eax = -1; // 返回 -1 表示失败
+		sf->eax = -1;
 		return;
 	}
 
-	// 返回共享变量的值
 	sf->eax = sharedVar[svarID].value;
 	return;
 }
@@ -682,18 +660,13 @@ void sysSVarRead(struct StackFrame *sf) {
 void sysSVarWrite(struct StackFrame *sf){
 	// TODO: complete SharedVarWrite
 
-	// 获取共享变量的 ID
 	uint32_t svarID = sf->edx;
 
-	// 检查 ID 是否有效
 	if (svarID >= MAX_SHARED_VAR_NUM || sharedVar[svarID].state == 0) {
-		sf->eax = -1; // 返回 -1 表示失败
+		sf->eax = -1;
 		return;
 	}
-
-	// 写入共享变量的值
 	sharedVar[svarID].value = sf->ebx;
-
-	sf->eax = 0; // 返回 0 表示成功
+	sf->eax = 0; 
 	return;
 }
